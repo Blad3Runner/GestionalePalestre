@@ -2,7 +2,26 @@
 
 Agreed 2026-07-29. Ten steps, in this order. Decisions live in
 [decisions.md](decisions.md); the schema in [data-model.md](data-model.md); the
-architecture rules in [claude.md](claude.md).
+architecture rules in [../CLAUDE.md](../CLAUDE.md).
+
+---
+
+## Progress
+
+**Do the first unchecked step below. Only that step. Then tick it and stop.**
+
+- [ ] Step 1 — Project skeleton
+- [ ] Step 2 — Login and roles
+- [ ] Step 3 — Tenant separation
+- [ ] Step 4 — People, roles within a gym, and lifecycle
+- [ ] Step 5 — Catalogue: services, prices, packs and levels
+- [ ] Step 6 — The credit wallet as a ledger
+- [ ] Step 7 — Starter Pack entitlements
+- [ ] Step 8 — Sessions, capacity and booking
+- [ ] Step 9 — Check-in, cancellation and dynamic group pricing
+- [ ] Step 10 — The weekly frequency discount
+
+*Nothing has been built yet. The repository currently contains documentation only.*
 
 ---
 

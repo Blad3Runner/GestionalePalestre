@@ -14,7 +14,7 @@ Format:
 
 ---
 
-## 2026-07-29 — Technology stack (proposed, awaiting explicit confirmation)
+## 2026-07-29 — Technology stack (confirmed)
 
 **Decision:** PostgreSQL (already decided by the owner) · TypeScript · Next.js (React) ·
 Prisma · PostgreSQL Row-Level Security · Auth.js · Tailwind CSS + shadcn/ui ·
@@ -41,7 +41,8 @@ recharge packs where credits cost less than €1 (owner's examples: 250 cr for �
 **Consequences:** a credit's **face value** (1 cr) and its **cash value** (what the member
 actually paid for it) are two different numbers and must both be stored. Credits are
 therefore tracked in dated purchase batches, each carrying its own cash-per-credit rate.
-See open item OQ-1 below — how revenue is recognised depends on this.
+How revenue is recognised follows from this — see "Revenue recognition: the credit cash
+ratio" below.
 
 ---
 

@@ -35,11 +35,14 @@ The platform also supports classic recurring memberships. Both models are core.
 
 | File | What's in it |
 | --- | --- |
-| [docs/claude.md](docs/claude.md) | Architecture and hard rules — the project constitution |
-| [docs/features-credit-model.md](docs/features-credit-model.md) | Full business specification of the founding tenant |
+| [CLAUDE.md](CLAUDE.md) | Architecture and hard rules — the project constitution |
+| [docs/build-plan.md](docs/build-plan.md) | The ten build steps and the progress checklist |
 | [docs/decisions.md](docs/decisions.md) | Log of every decision taken, with reasoning |
+| [docs/data-model.md](docs/data-model.md) | The agreed database shape |
+| [docs/features-credit-model.md](docs/features-credit-model.md) | Full business specification of the founding tenant |
 
 ## Status
 
-Foundation stage. No application code yet — technology stack and build order are
-being agreed before anything is written.
+Foundation stage. **No application code yet** — the repository contains documentation
+only. The technology stack, the database shape and a ten-step build order are agreed
+and written down; Step 1 has not started.
