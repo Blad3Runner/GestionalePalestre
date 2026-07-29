@@ -11,7 +11,7 @@ architecture rules in [../CLAUDE.md](../CLAUDE.md).
 **Do the first unchecked step below. Only that step. Then tick it and stop.**
 
 - [x] Step 1 — Project skeleton *(done 2026-07-29)*
-- [ ] Step 2 — Login and roles
+- [x] Step 2 — Login and roles *(done 2026-07-29)*
 - [ ] Step 3 — Tenant separation
 - [ ] Step 4 — People, roles within a gym, and lifecycle
 - [ ] Step 5 — Catalogue: services, prices, packs and levels
@@ -22,11 +22,18 @@ architecture rules in [../CLAUDE.md](../CLAUDE.md).
 - [ ] Step 10 — The weekly frequency discount
 
 *Step 1 built the skeleton: the application runs, PostgreSQL 18 is connected, migrations
-and tests both work. No business tables exist yet — that is correct.*
+and tests both work. Step 2 added real accounts, the five roles and server-enforced page
+protection, with 141 automated tests. No gyms and no business data yet — that is correct.*
 
-*Before starting Step 3, read the superuser warning at the end of
-[decisions.md](decisions.md). Row-Level Security silently does nothing if the application
-still connects as `postgres`.*
+**Before starting Step 3, read two notes in [decisions.md](decisions.md):**
+
+1. *The superuser warning.* Row-Level Security silently does nothing while the application
+   still connects as `postgres`. Step 3 must create a separate application role first.
+2. *Roles currently live on the person, not on a gym.* Step 4 moves the four gym-scoped
+   roles into `bridge_gym_person`; the route policy gains a gym dimension then.
+
+*Also open: **OQ-7**, which email service actually sends the password-reset message.
+Nothing sends it today — the link is printed in the terminal.*
 
 ---
 

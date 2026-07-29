@@ -341,6 +341,70 @@ privileged account for migrations only.
 
 ---
 
+## 2026-07-29 — Roles live on the person until gyms exist
+
+**Decision:** Step 2 stores the five roles on the person, in a `person_role` table, not
+scoped to any gym. `PLATFORM_ADMIN` is genuinely global — the founders belong to no gym.
+The other four describe what somebody does *at a gym*.
+
+**Why:** gyms do not exist until Step 3 and people are not linked to them until Step 4,
+but login and route protection had to be built and tested now. Holding the roles at
+platform level was the only way to do that without building Step 4 early.
+
+**Consequences:** when Step 4 creates `bridge_gym_person`, the four gym-scoped roles move
+there and `person_role` keeps only `PLATFORM_ADMIN`. The route policy in
+`src/lib/auth/route-policy.ts` then gains a gym dimension. This is expected, not a
+mistake to be discovered later.
+
+---
+
+## 2026-07-29 — Auth.js v5, sessions in a signed cookie
+
+**Decision:** Auth.js version 5 with an email-and-password provider. The session lives in
+a signed cookie rather than a database table, and lasts 8 hours.
+
+**Why:** version 5 is the one built for the way this application is structured; version 4
+predates it. Auth.js requires the cookie approach when signing in with a password rather
+than through Google or Facebook. Version 5 is still labelled "beta" by its authors, but it
+is what essentially every current Next.js application uses.
+
+**Consequences:** the `AUTH_SECRET` value in `.env` signs those cookies. Anyone holding it
+could forge a login, so the live server must use a different one. Signing out is
+immediate, but changing somebody's roles only takes effect at their next sign-in — a
+consequence of not storing sessions in the database. Acceptable now; revisit if roles ever
+need to be revoked instantly.
+
+---
+
+## 2026-07-29 — Passwords hashed with bcrypt
+
+**Decision:** bcrypt, work factor 12, minimum password length 10 characters.
+
+**Why:** the long-standing, well-understood standard. The work factor makes each guess
+slow enough that stolen hashes are impractical to crack.
+
+**Consequences:** bcrypt silently ignores anything past 72 bytes, so the system rejects
+longer passwords outright rather than letting two different long passwords become
+interchangeable. Step 2's scope deliberately excludes any further password policy.
+
+---
+
+## 2026-07-29 — Italian and English held as dictionaries in the code
+
+**Decision:** all interface text lives in `src/i18n/dictionaries.ts`, one entry per phrase
+in both languages. Italian is the reference: the English version will not compile if it
+omits a phrase or invents one. No translation library.
+
+**Why:** the alternative libraries restructure every address in the application
+(`/it/accedi`, `/en/signin`), which is a large commitment for a system whose screens are
+not designed yet. A dictionary delivers what Step 2 asks for and can be swapped later
+without touching the screens.
+
+**Consequences:** the language shown follows, in order: the language saved on the account,
+then the visitor's choice kept in a cookie, then Italian.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
@@ -355,6 +419,13 @@ told otherwise, matching how euros behave.
 
 **OQ-6 · The couple Starter Pack.** €84/person — two separate people, each with their own
 4 PT sessions, osteopath and nutritionist evaluation. Proceeding on that reading.
+
+**OQ-7 · Which service actually sends email?** ⚠ *Blocking before anyone outside the
+project uses the system.* Step 2 built the whole "I forgot my password" flow, but nothing
+sends the message: the link is printed in the terminal instead. Choosing a provider is a
+real decision — recurring cost, EU-only hosting, and a GDPR data-processing agreement —
+so it was not invented. Password reset does not work for a real person until this is
+answered. Only `src/lib/email.ts` changes once it is.
 
 ---
 

@@ -1,12 +1,11 @@
 // Database schema for Gestionale Palestre.
 //
-// Step 1 of docs/build-plan.md deliberately defines NO tables. This file exists so that
-// the connection, the client generator and the migration command are proven to work
-// before any real data enters the picture.
-//
 // The agreed table design lives in docs/data-model.md. Tables arrive step by step:
-// `dim_person` in Step 2, `dim_gym` and the tenant rule in Step 3, and so on.
+// `dim_person` in Step 2 (this file), `dim_gym` and the tenant rule in Step 3, and so on.
 // Do not add tables ahead of the step that calls for them.
+//
+// Table names are snake_case, matching docs/data-model.md, via @@map. Prisma model
+// names stay PascalCase because that is how they are read in TypeScript.
 
 generator client {
   provider = "prisma-client"
@@ -15,4 +14,78 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// The five roles of the platform.
+///
+/// PLATFORM_ADMIN is genuinely global — the founders, who belong to no single gym.
+/// The other four describe what somebody does *at a gym*; until Step 3 creates gyms
+/// and Step 4 links people to them, they are held here at platform level so that
+/// login and route protection can be built and tested now.
+enum Role {
+  PLATFORM_ADMIN
+  GYM_OWNER
+  STAFF
+  TRAINER
+  MEMBER
+}
+
+/// The languages the interface is available in. Italian is the default.
+enum Language {
+  IT
+  EN
+}
+
+/// A human being — one global identity, deliberately carrying no gym_id.
+/// The same individual can later be a member at one gym and a trainer at another
+/// (docs/decisions.md, 2026-07-29).
+model Person {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(200)
+  /// Stored lower-cased so that sign-in is not case-sensitive.
+  email        String   @unique @db.VarChar(320)
+  /// A bcrypt hash. The plain password is never stored, logged or returned.
+  passwordHash String   @map("password_hash") @db.VarChar(60)
+  phone        String?  @db.VarChar(40)
+  language     Language @default(IT)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  roles               PersonRole[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@map("dim_person")
+}
+
+/// Which roles a person holds. One row per role, so a person can hold several —
+/// the founding studio's owner is both GYM_OWNER and TRAINER.
+model PersonRole {
+  id       String   @id @default(uuid()) @db.Uuid
+  personId String   @map("person_id") @db.Uuid
+  role     Role
+  grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, role])
+  @@index([role])
+  @@map("person_role")
+}
+
+/// A pending "I forgot my password" request.
+///
+/// Only a hash of the token is stored, so that a leaked database still does not let
+/// anyone reset an account — the same reasoning as never storing plain passwords.
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  personId  String    @map("person_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+  @@map("password_reset_token")
 }

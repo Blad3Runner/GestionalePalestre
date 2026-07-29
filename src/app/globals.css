@@ -1,8 +1,9 @@
 /*
  * Minimal readable defaults only.
  *
- * Step 1 of the build plan deliberately excludes UI framework and styling work.
- * Tailwind CSS and shadcn/ui arrive with the first real screens, in Step 2.
+ * No UI framework yet — neither Step 1 nor Step 2 of the build plan calls for one, and
+ * these screens exist to prove that permissions work, not to look finished. Tailwind CSS
+ * and shadcn/ui (docs/decisions.md, 2026-07-29) arrive when real screens are designed.
  */
 
 :root {
@@ -113,4 +114,129 @@ pre {
 
 a {
   color: inherit;
+}
+
+/* --- Navigation bar ------------------------------------------------------ */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  max-width: 44rem;
+  margin: 0 auto 2rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar .brand {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.topbar .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.topbar .links a {
+  font-size: 0.9rem;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-left: auto;
+  font-size: 0.9rem;
+}
+
+.topbar-right .who {
+  color: var(--muted);
+}
+
+.inline {
+  display: inline;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* --- Forms --------------------------------------------------------------- */
+
+.narrow {
+  max-width: 26rem;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.stack label {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.stack input {
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--page);
+  color: var(--text);
+  font: inherit;
+}
+
+.stack button[type="submit"] {
+  margin-top: 0.5rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stack button[type="submit"]:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.notice {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+
+.notice.bad {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.notice.ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.area-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.area-list li {
+  margin-bottom: 0.35rem;
 }

@@ -77,20 +77,54 @@ reason, instead of showing a broken page.
 npm test
 ```
 
+### Logging in
+
+Run this once to create the demo accounts:
+
+```bash
+npm run db:seed
+```
+
+All five use the password `Palestra2026!`. They exist only on your computer.
+
+| Email | Role | What they can see |
+| --- | --- | --- |
+| `admin@example.com` | Platform admin | Platform administration |
+| `titolare@example.com` | Gym owner **and** trainer | Gym management, front desk, trainer area |
+| `reception@example.com` | Front desk | Front desk |
+| `trainer@example.com` | Trainer *(set to English)* | Trainer area |
+| `cliente@example.com` | Member | My area |
+
+Try typing a forbidden address by hand — for example sign in as `cliente@example.com`
+and go to <http://localhost:3000/admin>. You will be refused, not merely shown an empty
+menu.
+
+**Password reset does not send email yet.** No email service has been chosen (see OQ-7 in
+[docs/decisions.md](docs/decisions.md)). Until one is, the reset link is printed in the
+terminal window where `npm run dev` is running.
+
 ### Occasionally useful
 
 | Command | What it does |
 | --- | --- |
 | `npm run db:migrate` | Applies any pending database changes |
+| `npm run db:seed` | Recreates the demo accounts above |
 | `npm run db:studio` | Opens a visual browser for the database contents |
 | `npm run typecheck` | Checks the code for type mistakes without running it |
 | `npm run build` | Builds the production version |
 
 ## Status
 
-**Step 1 of ten is complete** — the skeleton. The application runs, connects to
-PostgreSQL, has a working migration command and a passing test suite.
+**Steps 1 and 2 of ten are complete.**
 
-There is deliberately **no business functionality yet**: no gyms, no people, no credits,
-no bookings. Those arrive one step at a time, in the order set out in
-[docs/build-plan.md](docs/build-plan.md). Step 2 is login and roles.
+- **Step 1 — skeleton.** The application runs, connects to PostgreSQL, has a working
+  migration command and a passing test suite.
+- **Step 2 — login and roles.** Real accounts with email and password, sign out, password
+  reset, the five roles (a person may hold several), Italian and English throughout, and
+  page protection enforced by the server rather than hidden in a menu. 141 automated
+  tests, including every role against every protected area.
+
+There is deliberately **no business functionality yet**: no gyms, no credits, no
+bookings. Those arrive one step at a time, in the order set out in
+[docs/build-plan.md](docs/build-plan.md). Step 3 is tenant separation — the walls between
+gyms, and the most important step in the project.
