@@ -10,7 +10,7 @@ architecture rules in [../CLAUDE.md](../CLAUDE.md).
 
 **Do the first unchecked step below. Only that step. Then tick it and stop.**
 
-- [ ] Step 1 — Project skeleton
+- [x] Step 1 — Project skeleton *(done 2026-07-29)*
 - [ ] Step 2 — Login and roles
 - [ ] Step 3 — Tenant separation
 - [ ] Step 4 — People, roles within a gym, and lifecycle
@@ -21,7 +21,12 @@ architecture rules in [../CLAUDE.md](../CLAUDE.md).
 - [ ] Step 9 — Check-in, cancellation and dynamic group pricing
 - [ ] Step 10 — The weekly frequency discount
 
-*Nothing has been built yet. The repository currently contains documentation only.*
+*Step 1 built the skeleton: the application runs, PostgreSQL 18 is connected, migrations
+and tests both work. No business tables exist yet — that is correct.*
+
+*Before starting Step 3, read the superuser warning at the end of
+[decisions.md](decisions.md). Row-Level Security silently does nothing if the application
+still connects as `postgres`.*
 
 ---
 

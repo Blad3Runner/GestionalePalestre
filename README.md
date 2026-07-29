@@ -41,8 +41,56 @@ The platform also supports classic recurring memberships. Both models are core.
 | [docs/data-model.md](docs/data-model.md) | The agreed database shape |
 | [docs/features-credit-model.md](docs/features-credit-model.md) | Full business specification of the founding tenant |
 
+## Running it
+
+You need [Node.js](https://nodejs.org) 20 or newer and PostgreSQL 16 or newer.
+On this machine both are already installed — PostgreSQL 18 runs automatically as a
+Windows background service, so there is nothing to start by hand.
+
+**First time only**, after downloading the code onto a new computer:
+
+```bash
+npm install
+```
+
+Then copy `.env.example` to a file called `.env` and put the real database password in
+it. `.env` is never committed — it is the one file that holds secrets.
+
+### The three commands you need
+
+**Start the application:**
+
+```bash
+npm run dev
+```
+
+Then open <http://localhost:3000> in a browser. Press `Ctrl+C` in the terminal to stop it.
+
+**Check everything is healthy** — open <http://localhost:3000/health> while the app is
+running. It should say *"Application running"* and *"Database connected"* with the
+PostgreSQL version. If the database is unreachable it says so plainly and shows the
+reason, instead of showing a broken page.
+
+**Run the tests:**
+
+```bash
+npm test
+```
+
+### Occasionally useful
+
+| Command | What it does |
+| --- | --- |
+| `npm run db:migrate` | Applies any pending database changes |
+| `npm run db:studio` | Opens a visual browser for the database contents |
+| `npm run typecheck` | Checks the code for type mistakes without running it |
+| `npm run build` | Builds the production version |
+
 ## Status
 
-Foundation stage. **No application code yet** — the repository contains documentation
-only. The technology stack, the database shape and a ten-step build order are agreed
-and written down; Step 1 has not started.
+**Step 1 of ten is complete** — the skeleton. The application runs, connects to
+PostgreSQL, has a working migration command and a passing test suite.
+
+There is deliberately **no business functionality yet**: no gyms, no people, no credits,
+no bookings. Those arrive one step at a time, in the order set out in
+[docs/build-plan.md](docs/build-plan.md). Step 2 is login and roles.

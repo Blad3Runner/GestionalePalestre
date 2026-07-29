@@ -1,0 +1,116 @@
+/*
+ * Minimal readable defaults only.
+ *
+ * Step 1 of the build plan deliberately excludes UI framework and styling work.
+ * Tailwind CSS and shadcn/ui arrive with the first real screens, in Step 2.
+ */
+
+:root {
+  --text: #1a1a1a;
+  --muted: #5c5c5c;
+  --line: #e2e2e2;
+  --ok: #0a7a3d;
+  --bad: #b3261e;
+  --surface: #ffffff;
+  --page: #f7f7f7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #ececec;
+    --muted: #a2a2a2;
+    --line: #333333;
+    --ok: #4ac97e;
+    --bad: #ef7c72;
+    --surface: #1c1c1c;
+    --page: #131313;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2.5rem 1.25rem;
+  background: var(--page);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.25rem;
+}
+
+.lede {
+  color: var(--muted);
+  margin: 0 0 2rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.card h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.status {
+  font-weight: 600;
+}
+
+.status.ok {
+  color: var(--ok);
+}
+
+.status.bad {
+  color: var(--bad);
+}
+
+dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+code,
+pre {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.875rem;
+}
+
+pre {
+  background: var(--page);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.75rem;
+  overflow-x: auto;
+  margin: 0.5rem 0 0;
+}
+
+a {
+  color: inherit;
+}

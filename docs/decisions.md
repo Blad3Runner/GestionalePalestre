@@ -277,6 +277,70 @@ commercialista reviews the project documents already require.
 
 ---
 
+## 2026-07-29 — Local development database: PostgreSQL 18, installed natively
+
+**Decision:** PostgreSQL 18.4 is installed directly on the owner's Windows machine as an
+automatic background service, rather than run inside Docker. Database name
+`gestionale_palestre`.
+
+**Why:** owner's choice when asked. The machine had neither PostgreSQL nor Docker. A
+native service starts with the computer and needs no thought day to day; Docker Desktop
+is several gigabytes and has to be started before the app will work.
+
+**Consequences:** the local database password lives only in `.env`, which is not
+committed. It protects nothing but an empty local database and is unrelated to any
+future production credential. Docker remains available later for the deployment work
+without disturbing this.
+
+---
+
+## 2026-07-29 — Version pins forced by the toolchain
+
+**Decision:** TypeScript is pinned to version 6, not 7. Prisma 7 is used with the
+`@prisma/adapter-pg` driver adapter.
+
+**Why:** neither was a free choice. Next.js 16 rejects TypeScript 7 outright — it needs a
+compiler interface TypeScript 7 no longer provides, and the alternative was an
+*experimental* Next.js flag, which is the wrong foundation for a system meant to be
+maintained for years. Prisma 7 no longer connects to a database without a driver adapter.
+
+**Consequences:** raising TypeScript to 7 must wait until Next.js supports it. Recorded so
+the pin is not mistaken for carelessness and quietly "fixed" by a later session.
+
+---
+
+## 2026-07-29 — Known upstream security warnings, no action available
+
+**Decision:** `npm audit` reports three high-severity advisories in `postcss` and `sharp`.
+Both are Next.js's own bundled dependencies, not ours. No fix is accepted; the only
+"fix" npm offers is downgrading Next.js from 16 to 9, which is absurd.
+
+**Why:** no fixed release exists upstream yet. Neither package is reachable by our code —
+they serve Next.js's build step and image handling.
+
+**Consequences:** re-check on each Next.js upgrade. This must be resolved before the
+system is exposed on the public internet.
+
+---
+
+## 2026-07-29 — ⚠ The application connects as a PostgreSQL superuser (must change in Step 3)
+
+**Decision:** for Step 1 the application connects as the `postgres` superuser, because the
+database is empty and no isolation rules exist yet.
+
+**Why:** the simplest thing that proves the plumbing works, and Step 1's scope explicitly
+excludes tenant separation.
+
+**Consequences — this is a trap and must not be forgotten.** PostgreSQL Row-Level
+Security, which Step 3 relies on as the second lock around each gym's data, **does not
+apply to superusers, nor to the user that owns the table.** If Step 3 is built while the
+application is still connecting as `postgres`, the isolation tests will appear to pass
+while the lock is doing nothing at all. **Step 3 must therefore begin by creating a
+separate, non-superuser application role** and pointing `DATABASE_URL` at it, keeping the
+privileged account for migrations only.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.

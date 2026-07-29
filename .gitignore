@@ -9,6 +9,13 @@ build/
 .next/
 out/
 *.tsbuildinfo
+next-env.d.ts
+
+# Generated code — rebuilt by `npm install` / `npm run db:generate`, never edited
+src/generated/
+
+# Vendor agent skills installed by tooling, useful locally, not part of the project
+.claude/skills/
 
 # Environment and secrets — NEVER commit these
 .env

@@ -1,0 +1,18 @@
+// Database schema for Gestionale Palestre.
+//
+// Step 1 of docs/build-plan.md deliberately defines NO tables. This file exists so that
+// the connection, the client generator and the migration command are proven to work
+// before any real data enters the picture.
+//
+// The agreed table design lives in docs/data-model.md. Tables arrive step by step:
+// `dim_person` in Step 2, `dim_gym` and the tenant rule in Step 3, and so on.
+// Do not add tables ahead of the step that calls for them.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
