@@ -84,7 +84,13 @@ the bridge table.
 discounted pack cost less than €1, the system draws credits oldest-first from
 `fact_credit_batch`. That single choice makes three things correct at once: revenue is
 recognised at the cash actually received, the debt to the member clears exactly, and
-credits expire in the order the member would expect. *(Depends on open question OQ-1.)*
+credits expire in the order the member would expect.
+
+The client record shows a **current credit ratio** — the cash value of the credits the
+member holds right now — but that number is *calculated from the batches*, never stored
+and overwritten. A member holding 220 credits bought at €0.80 who then buys 600 more at
+€0.667 still owns 220 credits genuinely worth €0.80; overwriting a single ratio would
+quietly revalue them.
 
 **Money moves in two steps.** Booking writes a `hold` movement at the maximum price.
 Check-in writes a `hold release` plus a `charge` at the real price. Cancelling in time

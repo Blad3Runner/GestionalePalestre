@@ -92,8 +92,10 @@ system, this is tenant configuration, not a constant.
 
 **Why:** owner's choice; turns purchase into habit without being aggressive.
 
-**Consequences:** each credit batch carries its own expiry date. Whether a new recharge
-resets the clock on older credits is still open — see OQ-2.
+**Consequences:** each credit batch carries its own expiry date. A new recharge does
+**not** extend the life of older credits — they expire on their original date regardless
+(owner, 2026-07-29). Combined with oldest-first consumption, this means a member who keeps
+training never loses anything, while dormant credits do lapse on schedule.
 
 ---
 
@@ -227,30 +229,69 @@ mistakes are corrected with a new offsetting row, never by editing history.
 
 ---
 
+## 2026-07-29 — Revenue recognition: the credit cash ratio
+
+**Decision:** a credit is worth what the member actually paid for it, not its €1 face
+value. Buy 250 credits for €200 and each is worth €0.80; spend 30 and the studio has
+earned €24, not €30. Every client therefore has a **current credit ratio** — the cash
+value of the credits they currently hold.
+
+**Why:** owner's decision. Any other treatment books income the studio never received,
+and the debt owed to members never fully clears.
+
+**Consequences:** the ratio is *shown* on the client record as the owner asked, but the
+**underlying truth is stored per purchase batch**, and the ratio is calculated from those
+batches rather than typed over. This is forced by the expiry rule already decided: since
+credits expire 12 months from *their own* purchase date and are never extended, the system
+must already know which credits came from which purchase. Once it knows that, the ratio
+comes for free and stays correct even when a member holds two packs bought at different
+rates. A single stored number, overwritten at each purchase, would silently revalue the
+member's older credits — real money, quietly lost or invented.
+
+---
+
+## 2026-07-29 — A reversed session does not recalculate the week
+
+**Decision:** if a session is undone after the fact (trainer ill, studio closed, check-in
+recorded by mistake), already-charged sessions in that week stay as they are. Only
+subsequent sessions use the corrected count. Revisit later if it causes real complaints.
+
+**Why:** owner's decision — simpler, kinder to the member, and rare enough not to matter.
+
+**Consequences:** a member can occasionally end a week having paid slightly less than the
+strict formula would give. Accepted.
+
+---
+
+## 2026-07-29 — Infrastructure budget
+
+**Decision:** the technology stack is confirmed, subject to recurring hosting costs
+staying in the €30–50/month range.
+
+**Consequences:** hosting will be a single EU provider with managed PostgreSQL rather than
+a self-managed database — see the cost breakdown discussed 2026-07-29. Excluded from that
+figure and to be budgeted separately when the time comes: transactional email above the
+free tier, the e-invoicing provider, payment-processing fees, and the one-off legal and
+commercialista reviews the project documents already require.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
 
-**OQ-1 · How much revenue does a discounted credit produce?**
-If a member buys 250 credits for €200, each credit cost them €0.80. When they spend 30
-credits on a session, is the recognised revenue €30 or €24? It must be €24, or the debt
-to the member never fully clears and the books drift. Needs an explicit yes.
-
-**OQ-2 · Does a new recharge extend the life of older credits?**
-12 months from purchase is decided. If a member with 100 credits expiring in March buys
-600 more in January, do the old 100 now live 12 months too, or keep their original date?
-
-**OQ-3 · What happens to a week's frequency discount when a session is undone?**
-Not a member cancelling — a trainer falling ill, the studio closing, or a check-in
-recorded by mistake. If Monday's session is reversed on Thursday, does the whole week
-recalculate (the member may owe credits back), or does the past stay frozen?
-
 **OQ-4 · Do osteopathy and mobility *receive* the frequency discount, or only *count*
-toward it?** Both now count as entries. Separate question: if the week's third entry is
-an osteopathy session, is the osteopathy charge itself discounted by 14%?
+toward it?** Both now count as entries. Separate question: if the week's third entry is an
+osteopathy session, is the osteopathy charge itself discounted by 14%? **Parked by the
+owner** — a detail to settle when the pricing engine is actually built, not before.
 
 **OQ-5 · Rounding.** Proceeding with two decimal places on credits (27.90 cr) unless
 told otherwise, matching how euros behave.
 
 **OQ-6 · The couple Starter Pack.** €84/person — two separate people, each with their own
 4 PT sessions, osteopath and nutritionist evaluation. Proceeding on that reading.
+
+---
+
+*Resolved and moved into the decision log above: OQ-1 (credit cash ratio), OQ-2 (no expiry
+reset on recharge), OQ-3 (no weekly recalculation).*
