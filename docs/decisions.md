@@ -405,6 +405,147 @@ then the visitor's choice kept in a cookie, then Italian.
 
 ---
 
+## 2026-07-30 — The tenant is the company, not the gym
+
+**Decision:** a new `dim_company` sits above `dim_gym`. A company (a "circuit") owns one
+or more gyms; every gym belongs to exactly one company. **For isolation purposes the
+tenant is the company**, not the gym.
+
+Roles attach either at company level — valid across all of that company's gyms — or at a
+single gym. `person_role` shrinks to platform admin only, as already planned.
+
+**Why:** owner's decision. A client business may run several locations; its owner must see
+all of them, while a manager of one location must not see the others.
+
+**Consequences:** replaces "every table carries `gym_id`" with **every tenant table carries
+`company_id`**, plus `gym_id` where the row belongs to one location. Row-Level Security is
+built around the company. This supersedes the earlier assumption that the gym was the
+tenant.
+
+---
+
+## 2026-07-30 — Streamlining the model (the ledger design is untouchable)
+
+**Decision:** `fact_credit_batch`, `fact_credit_movement`, `fact_payment`, `audit_log`,
+`dim_anamnesi`, `dim_consent` and the dated price bands and discount rules are **unchanged**.
+Everything else is consolidated:
+
+1. **`dim_date` dropped.** The Monday–Sunday week is computed from timestamps.
+2. **`fact_frequency_entry` dropped.** Week, position in the week and the discount applied
+   become columns on the booking.
+3. **`fact_attendance` merged into `fact_booking`.** A booking has a status —
+   held / attended / cancelled / late_cancelled / no_show. Check-in fills the band price,
+   the discount and the credits charged. The real paying head count is written on
+   `fact_session` when the session closes.
+4. **`dim_client_profile` merged** into the person–gym membership record.
+5. **`bridge_gym_trainer` merged** into the same membership record.
+   `dim_trainer_compensation` stays separate and dated.
+6. **`dim_pack` + `dim_starter_product` → one `dim_product`** with a kind
+   (credit pack / starter), the starter's contents held as structured data.
+   **`fact_entitlement_grant` + `fact_entitlement_line` → one `fact_entitlement`**: one row
+   per granted unit, carrying when it was consumed and by which booking.
+7. **`dim_level` dropped as a table.** Level becomes a column; the permitted values live in
+   the gym's configuration.
+
+**Why:** owner's decision. The earlier design was warehouse-shaped, with more tables than
+the business needs.
+
+**Consequences:** roughly 28 designed tables become about 21. **`fact_credit_movement`
+remains append-only and is the immutable record of money.** Bookings, by contrast, are
+operational rows that change as the day unfolds; their history is preserved by `audit_log`,
+not by forbidding updates.
+
+---
+
+## 2026-07-30 — One financial design for both kinds of gym
+
+**Decision:**
+
+1. `fact_payment` records **every** cash-in, with `cash_amount` **always** filled — for
+   subscription gyms and credit gyms alike.
+2. Credit gyms additionally record, per purchase, the credits granted and the resulting
+   cash-per-credit ratio (€100 for 125 credits → €0.80 per credit). This lives on the
+   credit batch.
+3. The **credit-adjusted cash amount** (credits consumed × the ratio of the batch they came
+   from; 50 consumed in that example → €40) is **always computed from the ledger.** It is a
+   view or a measure, **never a stored column that gets updated.**
+4. An owner can switch between the **total cash-in** view and the **credit-adjusted** view.
+   Subscription gyms use the same mechanism with time elapsed in place of credits — an
+   annual pass recognises its value month by month — so the toggle exists for every tenant.
+
+**Why:** owner's decision. Cash received and value delivered are different numbers, and the
+owner needs both without either being able to drift out of agreement with the facts.
+
+**Consequences:** this is the accounting rule from CLAUDE.md made concrete and extended to
+subscription gyms. The subscription half of point 4 cannot be built until subscription
+rules are defined, which remains deferred.
+
+---
+
+## 2026-07-30 — Row-Level Security: five access levels
+
+**Decision:** five levels of access.
+
+| Level | Sees |
+| --- | --- |
+| 1 · Platform admin | Everything, across all companies |
+| 2 · Company | All gyms of their own circuit |
+| 3 · Gym | Owner-type access, restricted to a single gym |
+| 4 · Worker (trainer, doctor, front desk) | Their gym only, **no financial data**; each trainer only their own agenda and clients |
+| 5 · Client | **Only their own rows** — their wallet, bookings, payments, profile. Never anything gym-wide |
+
+Implementation, strictly in this order:
+
+6. **Before any policy is written:** create the restricted database account the application
+   will use — not a superuser, without `BYPASSRLS`, and owner of nothing. Migrations keep
+   using the privileged account.
+7. Every request opens its transaction by setting a **badge** via `SET LOCAL`: company,
+   optional gym, access level, person. Every tenant table gets `ENABLE` **and** `FORCE ROW
+   LEVEL SECURITY`, with policies that match the badge.
+8. `dim_person` is global and has no `company_id`. It is visible only through a membership
+   in the badge's company or gym, or when it is one's own row. Platform admin overrides.
+9. **Wall tests, run on the restricted account and designed to fail if the wall is fake:**
+   (a) a company A badge issuing a raw query for company B's rows returns zero;
+   (b) a gym-level badge cannot read sibling gyms of the same company;
+   (c) a client badge cannot read another client's rows in the same gym;
+   (d) with no badge at all, tenant tables return nothing;
+   (e) an assertion that the application's connection is not a superuser and cannot bypass
+   Row-Level Security.
+
+**Why:** owner's decision. Test (e) exists because Row-Level Security is silently ignored
+for superusers and for the owner of a table — without it, every other test could pass while
+protecting nothing.
+
+**Consequences:** every database interaction runs inside a transaction, because `SET LOCAL`
+lasts only as long as one. This is also what makes the approach safe with connection
+pooling: the badge cannot leak into another request's query.
+
+---
+
+## 2026-07-30 — Anti-warehouse rules (permanent)
+
+**Decision:**
+
+1. In [data-model.md](data-model.md), **every table is marked with the build step that
+   creates it.** No table is created before its step needs it.
+2. **No snapshot tables, no stored aggregates, no stored running totals.** Anything
+   derivable — balances, adjusted amounts, KPIs — is computed from the facts. Fact tables
+   grow only when a real event happens.
+3. **If a future feature appears to need a new table, it is proposed to the owner first,
+   with the reason.**
+
+**Why:** owner's decision, and it prevents the drift that produced the earlier
+warehouse-shaped design.
+
+**Consequences:** a small number of stored values look like exceptions but are not. The
+maximum price promised at booking, the band price and credits charged at check-in, the real
+paying head count at session close, and the cash-per-credit ratio on a batch are all
+**recorded evidence of what happened at a moment in time** — the studio must be able to
+prove what the member was told and charged. They are never recalculated. A stored *balance*
+would be a violation; a stored *receipt* is not.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.

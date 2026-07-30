@@ -1,99 +1,175 @@
 # Data model
 
-Design sketch, agreed 2026-07-29. Not code — this is the map the code will follow.
+Rewritten 2026-07-30 following the owner's structural decisions — see
+[decisions.md](decisions.md), entries dated 2026-07-30. This supersedes the earlier
+design sketch.
 
-## Shape: dimensional style
-
-The database is organised the way a reporting warehouse is organised:
-
-- **Dimension tables** hold the slow-moving things — gyms, people, services, price
-  bands, levels, calendar days. They describe *what exists*.
-- **Fact tables** hold events — credit movements, bookings, attendances, payments.
-  They record *what happened*, one row per event, and they are **append-only**: a
-  mistake is corrected by adding an offsetting row, never by editing history.
-- Everything is joined by **surrogate primary keys** (a meaningless permanent id
-  number), so a person can change their email, a service can be renamed and a price can
-  change without breaking a single historical record.
-
-This fits the business unusually well, because the credit ledger is a fact table by
-nature: "on this date, this member, this service, this many credits". The owner's
-financial views — revenue by service, revenue per trainer hour, live credit liability —
-then come straight out of the design rather than being bolted on afterwards.
-
-**One honest caveat.** A textbook star schema is built for *reading*. This app also has
-to *write* safely: two people booking the last slot at the same moment must not both get
-it, and a balance must never be wrong. So a handful of tables carry stricter rules than a
-warehouse would use. The shape is dimensional; the guarantees are transactional.
-
-## The tenant rule
-
-Every table below carries `gym_id`, with one deliberate exception: `dim_person`. A person
-is one global human being — the same individual can be a member at one gym and a trainer
-at another (owner's decision, 2026-07-29). What ties them to a gym, and in what role, is
-the bridge table.
+**Not code — this is the map the code follows.** The "Step" column is binding: no table is
+created before the step that needs it. Three tables exist today; everything else is
+planned.
 
 ---
 
-## Dimensions
+## The shape
 
-| Table | What it holds |
-| --- | --- |
-| `dim_gym` | The tenant. Name, city, timezone, status, and the settings bag that makes every business rule configurable per client. |
-| `dim_person` | A human being: name, email, password, phone, language. **No `gym_id`** — see the tenant rule above. |
-| `dim_service` | Something sellable: PT, mobility, osteopathy, BIA, water. Carries its category, its VAT treatment, and whether it counts toward the weekly frequency discount. |
-| `dim_price_band` | Price per head by group size (50 / 35 / 30 / 25 / 20), with `valid_from` / `valid_to`. Changing a price never rewrites last year. |
-| `dim_level` | Strength/mobility classification that drives automatic group matching. |
-| `dim_discount_rule` | The frequency scale: 2 entries → −7%, 3 → −14%, and beyond. Dated, so changes don't corrupt past weeks. |
-| `dim_pack` | Recharge SKUs: credits granted, cash price, resulting cash-per-credit, validity in months. |
-| `dim_starter_product` | The €140 Starter Pack and its €84/person couple variant, and exactly what each grants. |
-| `dim_trainer_compensation` | Per trainer, dated: per-session, revenue share, or owner draw. |
-| `dim_date` | One row per calendar day, with the Monday–Sunday week it belongs to. Makes the weekly counter and every report trivial. |
-| `dim_client_profile` | A member's gym-specific detail: assigned level, package cap ("da 2/3/4"), default trainer. |
-| `dim_anamnesi` | **Special-category health data**, deliberately in its own table: goal, strength, mobility, history, clinical flags. Encrypted, access restricted, separately deletable. |
-| `dim_consent` | Contract signature (artt. 1341–1342 c.c.), privacy, health questionnaire, art. 9 consent — each dated and versioned. |
-| *(reserved)* `dim_subscription_product` | Recurring memberships. Placeholder now, rules later. |
+Reference tables (`dim_`) describe *what exists*. Event tables (`fact_`) record *what
+happened*, one row per event. Everything is joined by permanent internal identifiers, so an
+email can change and a price can be revised without breaking a single historical record.
 
-## Bridges
+**Three rules govern this model. They are not negotiable.**
 
-| Table | What it holds |
-| --- | --- |
-| `bridge_gym_person` | **Gym ↔ User.** Which person belongs to which gym, in which role (owner / staff / trainer / member — more than one allowed, since Matteo is owner *and* trainer), their lifecycle state (Lead → Starter → Client → Dormant/Churn), and when they joined. |
-| `bridge_gym_trainer` | **Gym ↔ PT.** Trainer-specific detail at that gym: which services they can deliver, their compensation model, active or deactivated, and the dates. Trainers are never deleted — deactivated, so history stays attributed. |
+1. **The tenant is the company.** Every tenant table carries `company_id`, plus `gym_id`
+   where the row belongs to one location. The single exception is `dim_person`.
+2. **Nothing derivable is stored.** No snapshot tables, no stored aggregates, no running
+   totals. A balance is always the sum of the ledger, computed on demand — never a number
+   kept up to date.
+3. **`fact_credit_movement` is append-only.** A mistake is corrected with a new offsetting
+   row, never by editing history. Other fact tables may be updated as events unfold; their
+   history is preserved by `audit_log`.
 
-## Facts
+### Stored evidence is not a stored aggregate
 
-| Table | What it records |
-| --- | --- |
-| `fact_credit_batch` | Every credit purchase as a dated lot: credits bought, cash actually paid, the resulting cash-per-credit, and its own expiry date. This is what lets a discounted credit be valued correctly and expired oldest-first. |
-| `fact_credit_movement` | **The ledger.** One row per movement: purchase / hold / hold release / charge / refund / expiry / burn / correction. Carries the credits, the cash value, the service, the trainer, the booking, who did it and why. Append-only. The balance is always the sum of this table — never a stored number that could drift. |
-| `fact_session` | A slot on the calendar: trainer, service, level, start, end, maximum size, status. |
-| `fact_booking` | A member holding a place: when, which session, and **the maximum price they were promised** — stored, so we can always prove what they were told. |
-| `fact_attendance` | Check-in — the event that creates revenue: who was present, the real paying head count, the band price, the discount applied, and the credits actually charged. |
-| `fact_frequency_entry` | One row per paid entry in a Monday–Sunday week, with its position in the week and the discount applied. Makes the retroactive discount auditable instead of magic. |
-| `fact_payment` | Cash in: amount, method, what it was for, who recorded it. **Never revenue.** |
-| `fact_entitlement_grant` / `fact_entitlement_line` | The Starter Pack as bought and as consumed — 4 PT, 1 osteopath, 1 nutritionist evaluation, ticked off one at a time. Does not touch the wallet. |
-| `fact_lifecycle_event` | Every state change with its date. The backbone of the funnel diagnostics. |
-| `audit_log` | Who changed what, when, before and after — on everything touching credits or money. |
-| *(reserved)* `fact_subscription_period` | Recurring membership periods. Placeholder now. |
+A few values are written down and never recalculated, and this does not contradict rule 2:
+
+| Value | Where | Why it is recorded |
+| --- | --- | --- |
+| Maximum price promised | `fact_booking` | The studio must be able to prove what the member was told |
+| Band price, discount, credits charged | `fact_booking` | The receipt for that session |
+| Real paying head count | `fact_session` | The basis the price was calculated from |
+| Cash paid, credits granted, cash-per-credit | `fact_credit_batch` | The terms of that purchase |
+
+These are receipts. A stored *balance* would be a violation; a stored *receipt* is not.
 
 ---
 
-## Two things the shape has to get right
+## Tenancy and people
+
+| Table | Step | What it holds |
+| --- | --- | --- |
+| `dim_company` | 3 | **The tenant.** A circuit owning one or more gyms. Name, fiscal identifiers, status, and the configuration bag that makes every business rule adjustable per client. |
+| `dim_gym` | 3 | A single location. Belongs to exactly one company. Name, city, timezone, status, and its own configuration, which overrides the company's. |
+| `dim_person` | **2 · built** | A human being: name, email, password hash, phone, language. **No `company_id`** — one global identity, which is what lets the same individual be a member at one company and a trainer at another. |
+| `person_role` | **2 · built** | Shrinks to **platform admin only** in Step 4. Everything else moves to `bridge_membership`. |
+| `password_reset_token` | **2 · built** | Pending "I forgot my password" requests. Stores only a hash of the token. |
+| `bridge_membership` | 4 | **The heart of who-is-what-where.** One row per person, per scope, per role. Replaces `bridge_gym_person`, `bridge_gym_trainer` and `dim_client_profile`. |
+
+### `bridge_membership` in detail
+
+| Column | Notes |
+| --- | --- |
+| `company_id` | Always set |
+| `gym_id` | **Null means the role applies to every gym of the company.** Set means this location only |
+| `person_id`, `role` | `GYM_OWNER`, `STAFF`, `TRAINER` or `MEMBER` |
+| `joined_at`, `left_at`, `is_active` | Trainers are deactivated, never deleted, so history stays attributed |
+| `lifecycle_state` | Member rows only: Lead → Starter → Client → Dormant/Churn |
+| `level`, `package_cap`, `default_trainer_id` | Member rows only — was `dim_client_profile`. `level` is a plain value; permitted values live in the gym's configuration |
+| *(trainer fields)* | Trainer rows only — was `bridge_gym_trainer` |
+
+---
+
+## Catalogue — what a gym sells
+
+| Table | Step | What it holds |
+| --- | --- | --- |
+| `dim_service` | 5 | PT, mobility, osteopathy, BIA, water. Category, VAT treatment, and whether it counts toward the weekly frequency discount. |
+| `dim_price_band` | 5 | Price per head by group size (50 / 35 / 30 / 25 / 20), with `valid_from` / `valid_to`. |
+| `dim_discount_rule` | 5 | The frequency scale: 2 entries → −7%, 3 → −14%. Dated. |
+| `dim_product` | 5 | **Merged `dim_pack` + `dim_starter_product`.** A `kind` of credit pack or starter. Credit packs carry credits granted, cash price, resulting cash-per-credit and validity in months; starters carry their contents as structured data (4 PT + 1 osteopath + 1 nutritionist evaluation). Dated. |
+| `dim_trainer_compensation` | 4 | Per trainer, dated: per-session, revenue share, or owner draw. |
+| *(reserved)* `dim_subscription_product` | later | Recurring memberships. Rules still deferred. |
+
+---
+
+## Money — the part that must be exactly right
+
+| Table | Step | What it records |
+| --- | --- | --- |
+| `fact_credit_batch` | 6 | **Every credit purchase as a dated lot:** credits bought, cash actually paid, the resulting cash-per-credit, and its own expiry date. Never extended by a later purchase. |
+| `fact_credit_movement` | 6 | **The ledger. Append-only.** One row per movement: purchase / hold / hold release / charge / refund / expiry / burn / correction. Carries credits, cash value, service, trainer, booking, who did it and why. **The balance is always the sum of this table.** |
+| `fact_payment` | 6 | **Cash in. Never revenue.** `cash_amount` is always filled, for every kind of gym. Amount, method, what it was for, who recorded it. |
+| `fact_entitlement` | 7 | **Merged grant + line.** One row per granted unit of a starter product, with when it was consumed and by which booking. Never touches the wallet. |
+
+**The credit-adjusted view is computed, never stored.** Credits consumed multiplied by the
+ratio of the batch they came from. An owner toggles between total cash-in and this. For
+subscription gyms the same toggle uses time elapsed instead of credits.
+
+---
+
+## The calendar
+
+| Table | Step | What it records |
+| --- | --- | --- |
+| `fact_session` | 8 | A slot: trainer, service, level, start, end, maximum size, status. At close, the **real paying head count** (members present + late cancellations). |
+| `fact_booking` | 8 | **Absorbs `fact_attendance` and `fact_frequency_entry`.** See below. |
+
+### `fact_booking` in detail
+
+| Column | Filled | Notes |
+| --- | --- | --- |
+| `session_id`, `person_id` | at booking | |
+| `status` | throughout | held → attended / cancelled / late_cancelled / no_show |
+| `promised_max_price` | at booking | **Always the solo price.** Permanent proof of what the member was told |
+| `band_price`, `discount_applied`, `credits_charged` | at check-in | The receipt |
+| `week_start`, `position_in_week` | at charge | Monday–Sunday, in the gym's timezone. Was `fact_frequency_entry` |
+
+---
+
+## History, compliance and health
+
+| Table | Step | What it holds |
+| --- | --- | --- |
+| `fact_lifecycle_event` | 4 | Every state change with its date. The backbone of funnel diagnostics. |
+| `audit_log` | 4 | Who changed what, when, before and after. Covers everything touching credits or money — **and every change to a booking**, which is what makes operational rows safe to update. |
+| `dim_anamnesi` | later | **Special-category health data**, deliberately in its own table: goal, strength, mobility, history, clinical flags. Encrypted, access restricted, separately deletable. Requires the art. 9 consent flow first. |
+| `dim_consent` | later | Contract signature (artt. 1341–1342 c.c.), privacy, health questionnaire, art. 9 consent — each dated and versioned. |
+
+---
+
+## Removed from the earlier design
+
+| Was | Now |
+| --- | --- |
+| `dim_date` | Gone. The week is computed from timestamps in the gym's timezone |
+| `fact_frequency_entry` | Columns on `fact_booking` |
+| `fact_attendance` | Merged into `fact_booking` |
+| `dim_client_profile` | Columns on `bridge_membership` |
+| `bridge_gym_trainer` | Columns on `bridge_membership` |
+| `bridge_gym_person` | Renamed `bridge_membership`, now company-aware |
+| `dim_pack` + `dim_starter_product` | One `dim_product` with a `kind` |
+| `fact_entitlement_grant` + `_line` | One `fact_entitlement` |
+| `dim_level` | A column, with permitted values in gym configuration |
+
+Roughly 28 tables become 21.
+
+---
+
+## Row-Level Security
+
+The full rules are in [decisions.md](decisions.md). In short: a restricted database account
+is created **before any policy exists**; every request sets a badge (company, optional gym,
+access level, person) for the life of its transaction; every tenant table has Row-Level
+Security both `ENABLE`d and `FORCE`d.
+
+`dim_person` is the hard case: it has no `company_id`, so it is reachable only through a
+membership in the badge's company or gym, or as one's own row.
+
+Five wall tests run **on the restricted account** and are written to fail if the wall is
+fake — including an assertion that the application's own connection is not a superuser and
+cannot bypass Row-Level Security.
+
+---
+
+## Two things this shape has to get right
 
 **Credits are consumed from batches, not from a pot.** Because a credit bought in a
-discounted pack cost less than €1, the system draws credits oldest-first from
-`fact_credit_batch`. That single choice makes three things correct at once: revenue is
-recognised at the cash actually received, the debt to the member clears exactly, and
-credits expire in the order the member would expect.
+discounted pack cost less than €1, the system draws credits oldest-first. That single
+choice makes three things correct at once: revenue is recognised at the cash actually
+received, the debt to the member clears exactly, and credits expire in the order the member
+would expect. The client record shows a **current credit ratio** — the cash value of the
+credits held right now — but it is *calculated from the batches*, never stored.
 
-The client record shows a **current credit ratio** — the cash value of the credits the
-member holds right now — but that number is *calculated from the batches*, never stored
-and overwritten. A member holding 220 credits bought at €0.80 who then buys 600 more at
-€0.667 still owns 220 credits genuinely worth €0.80; overwriting a single ratio would
-quietly revalue them.
-
-**Money moves in two steps.** Booking writes a `hold` movement at the maximum price.
-Check-in writes a `hold release` plus a `charge` at the real price. Cancelling in time
-writes a `hold release`. Cancelling late converts the hold into a `burn`. Every one of
-those is a visible line in the member's statement, which is what makes the wallet a
-ledger rather than a number.
+**Money moves in two steps.** Booking writes a `hold` at the maximum price. Check-in writes
+a `hold release` plus a `charge` at the real price. Cancelling in time writes a `hold
+release`. Cancelling late converts the hold into a `burn`. Every one of those is a visible
+line in the member's statement, which is what makes the wallet a ledger rather than a
+number.
