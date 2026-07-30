@@ -9,6 +9,12 @@ export default async function DeskPage() {
   const t = await getText();
 
   return (
-    <AreaPage title={t.pages.deskTitle} lede={t.pages.deskLede} t={t} user={user} />
+    <AreaPage
+      title={t.pages.deskTitle}
+      lede={t.pages.deskLede}
+      t={t}
+      user={user}
+      links={[{ href: "/desk/members", label: t.members.title }]}
+    />
   );
 }

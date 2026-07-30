@@ -14,6 +14,10 @@ export default async function OwnerPage() {
       lede={t.pages.ownerLede}
       t={t}
       user={user}
+      links={[
+        { href: "/desk/members", label: t.members.title },
+        { href: "/owner/trainers", label: t.trainers.title },
+      ]}
     />
   );
 }

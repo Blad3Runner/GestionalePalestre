@@ -13,7 +13,7 @@ architecture rules in [../CLAUDE.md](../CLAUDE.md).
 - [x] Step 1 — Project skeleton *(done 2026-07-29)*
 - [x] Step 2 — Login and roles *(done 2026-07-29)*
 - [x] Step 3 — Tenant separation *(done 2026-07-30)*
-- [ ] Step 4 — People, roles within a gym, and lifecycle
+- [x] Step 4 — People, roles and lifecycle *(done 2026-07-30)*
 - [ ] Step 5 — Catalogue: services, prices, packs and levels
 - [ ] Step 6 — The credit wallet as a ledger
 - [ ] Step 7 — Starter Pack entitlements
@@ -147,10 +147,9 @@ any catalogue — Step 5 · the published layer beyond what the wall tests requi
 **Build:** `bridge_membership` grown to its complete shape — lifecycle state
 (Lead → Starter → Client → Dormant/Churn) and since when; the member's level, package cap
 and default trainer (this replaces `dim_client_profile`); the trainer's fields (this
-replaces `bridge_gym_trainer`) · `bridge_trainer_service`, a genuine many-to-many between a
-trainer and the services they deliver, **carrying no price** · `dim_trainer_compensation`,
-dated — per-session (junior), revenue share (senior), owner draw; **this is where seniority
-lives, and it changes what a trainer earns, never what a client pays** ·
+replaces `bridge_gym_trainer`) · `dim_trainer_compensation`, dated — per-session (junior),
+revenue share (senior), owner draw; **this is where seniority lives, and it changes what a
+trainer earns, never what a client pays** ·
 `fact_lifecycle_event` recording every state change with its date · **`person_role` reduced
 to platform admin only** · deactivation rather than deletion for trainers, with history
 preserved · **the full `audit_log`, switched on from here onward** — this is what makes
@@ -162,7 +161,10 @@ can exist at two companies with different roles; a deactivated trainer disappear
 scheduling but keeps their history; and every one of those changes appears in the audit log.
 
 **Not in this step:** the anamnesi and any health data — that needs the art. 9 consent
-flow and is deliberately separate · credits · bookings · automations or emails.
+flow and is deliberately separate · `bridge_trainer_service`, which points at services and
+so cannot exist before Step 5 · the automatic Lead → Starter → Client → Dormant machinery,
+which needs purchases and consumption that do not exist yet — Step 4 records transitions,
+it does not trigger them · credits · bookings · automations or emails.
 
 ---
 

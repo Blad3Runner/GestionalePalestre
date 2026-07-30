@@ -687,6 +687,52 @@ the model. It is recorded here so it is visible and can be objected to.
 
 ---
 
+## 2026-07-30 — ⚠ The database owns the clock (a real bug, found and fixed)
+
+**What happened:** every timestamp written by the application landed **two hours adrift** —
+exactly the local UTC offset — while every timestamp PostgreSQL wrote itself was correct.
+Two rows created in the same transaction disagreed about when "now" was: the audit entry
+said 14:34 UTC, the lifecycle entry said 12:34 UTC.
+
+**Why it matters far more than it looks.** Credits expire twelve months from purchase.
+Cancelling is free until exactly 24 hours before a session and costs the full price a
+minute later. The frequency discount depends on which Monday–Sunday week a session falls
+in. A two-hour error moves a cancellation across the line, moves a session into the wrong
+week, and expires credits on the wrong day. That is money, not cosmetics — and it would
+have been almost invisible until someone disputed a charge.
+
+**Decision:** the application never generates a timestamp. Every timestamp column is filled
+by PostgreSQL — `@default(dbgenerated("CURRENT_TIMESTAMP"))` instead of `@default(now())`,
+and a database trigger instead of Prisma's `@updatedAt`.
+
+**Why this rather than fixing the conversion:** there is now exactly **one clock**, and it
+is the one the ledger, the expiry job and the weekly reset will all read. Making the
+application's clock agree would have left two clocks that merely happened to agree.
+
+**Consequences:** `src/lib/db.clock.test.ts` fails if anybody hands the clock back — it
+checks that every timestamp column has a database default, that the `updated_at` triggers
+exist, and that two rows written in one transaction agree with each other and with the
+database. Found before any money code existed, which is the cheapest possible moment.
+
+---
+
+## 2026-07-30 — Audit entries for a person are visible to the platform only
+
+**Decision:** the audit trail attributes each entry to a company. Changes to `dim_person` —
+a name, a phone number — have no company, because a person can belong to several, so those
+entries are visible to platform admins only. A gym owner sees every change to memberships,
+lifecycle and compensation in their own company, but not the edit to a member's phone
+number.
+
+**Why:** attributing a person's record to one company would be wrong when they belong to
+two, and showing it to both would leak the existence of the other.
+
+**Consequences:** accepted for now, and visible on the member page, where the change log
+lists membership changes but not personal-detail changes. If owners need the latter, the
+answer is a per-company "contact detail" record rather than weakening the rule.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
@@ -701,6 +747,12 @@ told otherwise, matching how euros behave.
 
 **OQ-6 · The couple Starter Pack.** €84/person — two separate people, each with their own
 4 PT sessions, osteopath and nutritionist evaluation. Proceeding on that reading.
+
+**OQ-8 · How long is "no consumption" before somebody is Dormant?** The specification says
+Dormant means "no consumption for N weeks / idle balance", and **N was never chosen**.
+Churn is named in the state list but never defined at all. Not blocking: consumption does
+not exist until Step 6, so the rule cannot run yet, and Step 4 records these transitions
+by hand. Needs answering before the dormancy job is built.
 
 *(OQ-7, the email provider, was answered on 2026-07-30: **Resend**. See the decision above.)*
 

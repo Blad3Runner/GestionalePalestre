@@ -134,7 +134,7 @@ terminal window where `npm run dev` is running.
 
 ## Status
 
-**Steps 1 to 3 of ten are complete. 178 automated tests pass.**
+**Steps 1 to 4 of ten are complete. 220 automated tests pass.**
 
 - **Step 1 — skeleton.** The application runs, connects to PostgreSQL, has a working
   migration command and a passing test suite.
@@ -151,6 +151,16 @@ terminal window where `npm run dev` is running.
   privileged connection and 22 of them fail immediately — which is how we know they are
   testing something.
 
+- **Step 4 — people, roles and lifecycle.** Members can be created, listed and opened;
+  their state moves Lead → Starter → Client → Dormant/Churn with every change dated and
+  attributed. Trainers are deactivated, never deleted, and their assigned members are
+  released rather than reassigned automatically.
+
+  The **audit log** is switched on from here. It is written by database triggers rather
+  than application code, so no future feature can forget to record itself — and the
+  application is allowed to read it but never to write or erase an entry.
+
 There is deliberately **no business functionality yet**: no credits, no bookings, no
 prices. Those arrive one step at a time, in the order set out in
-[docs/build-plan.md](docs/build-plan.md). Step 4 is people, roles and lifecycle.
+[docs/build-plan.md](docs/build-plan.md). Step 5 is the catalogue — services, prices,
+packs and levels.

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Dictionary } from "@/i18n/dictionaries";
 import type { SignedInUser } from "@/lib/auth/guard";
 
@@ -13,16 +14,30 @@ export function AreaPage({
   lede,
   t,
   user,
+  links = [],
 }: {
   title: string;
   lede: string;
   t: Dictionary;
   user: SignedInUser;
+  links?: readonly { href: string; label: string }[];
 }) {
   return (
     <main>
       <h1>{title}</h1>
       <p className="lede">{lede}</p>
+
+      {links.length > 0 ? (
+        <div className="card">
+          <ul className="area-list">
+            {links.map((link) => (
+              <li key={link.href}>
+                <Link href={link.href}>{link.label}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="card">
         <dl>

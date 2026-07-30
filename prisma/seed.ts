@@ -97,16 +97,49 @@ async function main() {
       name: "Giulia Cliente",
       language: "IT" as const,
       platformRoles: [] as const,
-      memberships: [{ companyId: seregno.id, gymId: seregnoGym.id, role: "MEMBER" }],
-      description: "member at Seregno",
+      memberships: [
+        {
+          companyId: seregno.id,
+          gymId: seregnoGym.id,
+          role: "MEMBER",
+          lifecycleState: "CLIENT" as const,
+          level: "Intermedio",
+          packageCap: 3,
+        },
+      ],
+      description: "member at Seregno, already a Client",
     },
     {
       email: "cliente2@example.com",
       name: "Paolo Cliente",
       language: "IT" as const,
       platformRoles: [] as const,
-      memberships: [{ companyId: seregno.id, gymId: seregnoGym.id, role: "MEMBER" }],
-      description: "a SECOND member at the same gym — wall test (c) needs one",
+      memberships: [
+        {
+          companyId: seregno.id,
+          gymId: seregnoGym.id,
+          role: "MEMBER",
+          lifecycleState: "LEAD" as const,
+        },
+      ],
+      description: "a SECOND member at the same gym, still a Lead — wall test (c)",
+    },
+    {
+      email: "duecappelli@example.com",
+      name: "Elena Due Cappelli",
+      language: "IT" as const,
+      platformRoles: [] as const,
+      memberships: [
+        { companyId: seregno.id, gymId: seregnoGym.id, role: "TRAINER" },
+        {
+          companyId: nord.id,
+          gymId: monza.id,
+          role: "MEMBER",
+          lifecycleState: "CLIENT" as const,
+        },
+      ],
+      description:
+        "TRAINER at Studio Seregno and a MEMBER at Circuito Nord — one person, two companies",
     },
     {
       email: "nord@example.com",
@@ -148,17 +181,64 @@ async function main() {
 
     await prisma.membership.deleteMany({ where: { personId: record.id } });
     for (const membership of person.memberships) {
-      await prisma.membership.create({
+      const shape = membership as typeof membership & {
+        lifecycleState?: "LEAD" | "STARTER" | "CLIENT" | "DORMANT" | "CHURN";
+        level?: string;
+        packageCap?: number;
+      };
+
+      const created = await prisma.membership.create({
         data: {
           personId: record.id,
           companyId: membership.companyId,
           gymId: membership.gymId,
           role: membership.role as "GYM_OWNER" | "STAFF" | "TRAINER" | "MEMBER",
+          lifecycleState: shape.lifecycleState ?? null,
+          level: shape.level ?? null,
+          packageCap: shape.packageCap ?? null,
         },
       });
+
+      // Every member starts with the history that explains their state.
+      if (shape.lifecycleState) {
+        await prisma.lifecycleEvent.create({
+          data: {
+            membershipId: created.id,
+            companyId: membership.companyId,
+            gymId: membership.gymId,
+            fromState: null,
+            toState: shape.lifecycleState,
+            note: "Seeded",
+          },
+        });
+      }
+
+      // Seniority changes what a trainer earns, never what a client pays.
+      if (membership.role === "TRAINER") {
+        await prisma.trainerCompensation.create({
+          data: {
+            membershipId: created.id,
+            companyId: membership.companyId,
+            gymId: membership.gymId,
+            model: person.email === "titolare@example.com" ? "OWNER_DRAW" : "PER_SESSION",
+            amount: person.email === "titolare@example.com" ? null : "25.00",
+          },
+        });
+      }
     }
 
     console.log(`  ${person.email.padEnd(24)} ${person.description}`);
+  }
+
+  // Give the Seregno members a usual trainer, so deactivation has something to release.
+  const lucaTrainer = await prisma.membership.findFirst({
+    where: { role: "TRAINER", person: { email: "trainer@example.com" } },
+  });
+  if (lucaTrainer) {
+    await prisma.membership.updateMany({
+      where: { role: "MEMBER", gymId: seregnoGym.id },
+      data: { defaultTrainerId: lucaTrainer.id },
+    });
   }
 
   console.log("");
