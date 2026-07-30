@@ -1,4 +1,5 @@
 import type { Role } from "@/lib/auth/roles";
+import type { Scope } from "@/lib/tenancy/scope";
 import type { Locale } from "@/i18n/locale";
 
 /**
@@ -13,12 +14,15 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       roles: Role[];
+      /** Every company and gym this person belongs to. */
+      scopes: Scope[];
       locale: Locale;
     };
   }
 
   interface User {
     roles?: Role[];
+    scopes?: Scope[];
     locale?: Locale;
   }
 }
@@ -26,6 +30,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     roles?: Role[];
+    scopes?: Scope[];
     locale?: Locale;
   }
 }

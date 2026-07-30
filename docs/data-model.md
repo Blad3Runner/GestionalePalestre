@@ -51,7 +51,7 @@ These are receipts. A stored *balance* would be a violation; a stored *receipt* 
 | `dim_person` | **2 · built** | A human being: name, email, password hash, phone, language. **No `company_id`** — one global identity, which is what lets the same individual be a member at one company and a trainer at another. |
 | `person_role` | **2 · built** | Shrinks to **platform admin only** in Step 4. Everything else moves to `bridge_membership`. |
 | `password_reset_token` | **2 · built** | Pending "I forgot my password" requests. Stores only a hash of the token. |
-| `bridge_membership` | 4 | **The heart of who-is-what-where.** One row per person, per scope, per role. Replaces `bridge_gym_person`, `bridge_gym_trainer` and `dim_client_profile`. |
+| `bridge_membership` | **3** minimal · **4** full | **The heart of who-is-what-where.** One row per person, per scope, per role. Replaces `bridge_gym_person`, `bridge_gym_trainer` and `dim_client_profile`. Step 3 creates only what the badge needs — person, company, optional gym, role, active — because there is no way to know somebody owns Company A without a row saying so. Step 4 adds the rest. |
 
 ### `bridge_membership` in detail
 
@@ -60,7 +60,9 @@ These are receipts. A stored *balance* would be a violation; a stored *receipt* 
 | `company_id` | Always set |
 | `gym_id` | **Null means the role applies to every gym of the company.** Set means this location only |
 | `person_id`, `role` | `GYM_OWNER`, `STAFF`, `TRAINER` or `MEMBER` |
-| `joined_at`, `left_at`, `is_active` | Trainers are deactivated, never deleted, so history stays attributed |
+| `is_active` | Trainers are deactivated, never deleted, so history stays attributed |
+| *(above: Step 3 — everything the badge needs, and nothing more)* | |
+| `joined_at`, `left_at` | Step 4 |
 | `lifecycle_state` | Member rows only: Lead → Starter → Client → Dormant/Churn |
 | `level`, `package_cap`, `default_trainer_id` | Member rows only — was `dim_client_profile`. `level` is a plain value; permitted values live in the gym's configuration |
 | *(trainer fields)* | Trainer rows only — was `bridge_gym_trainer` |

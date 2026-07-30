@@ -32,7 +32,16 @@ export function AreaPage({
           </dd>
 
           <dt>{t.nav.yourRoles}</dt>
-          <dd>{user.roles.map((role) => t.roles[role]).join(", ")}</dd>
+          <dd>{user.effectiveRoles.map((role) => t.roles[role]).join(", ")}</dd>
+
+          <dt>{t.nav.viewing}</dt>
+          <dd>
+            {user.activeScope
+              ? user.activeScope.gymName
+                ? `${user.activeScope.companyName} — ${user.activeScope.gymName}`
+                : `${user.activeScope.companyName} (${t.nav.wholeCircuit})`
+              : t.nav.allCompanies}
+          </dd>
         </dl>
       </div>
 

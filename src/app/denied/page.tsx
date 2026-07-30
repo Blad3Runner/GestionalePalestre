@@ -47,8 +47,8 @@ export default async function DeniedPage({
 
           <dt>{t.denied.yourRoles}</dt>
           <dd>
-            {user && user.roles.length > 0
-              ? user.roles.map((role) => t.roles[role]).join(", ")
+            {user && user.effectiveRoles.length > 0
+              ? user.effectiveRoles.map((role) => t.roles[role]).join(", ")
               : "—"}
           </dd>
         </dl>

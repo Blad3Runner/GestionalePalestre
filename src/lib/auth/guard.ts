@@ -1,16 +1,22 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { hasAnyRole, parseRoles, type Role } from "@/lib/auth/roles";
+import { hasAnyRole, type Role } from "@/lib/auth/roles";
 import { rolesAllowedFor } from "@/lib/auth/route-policy";
-import { type Locale, DEFAULT_LOCALE } from "@/i18n/locale";
+import { currentViewer, type Viewer } from "@/lib/tenancy/active-scope";
 
 /**
  * Server-side page protection.
  *
- * This is the real lock. The middleware turns unauthorised visitors away earlier, which
- * is faster and tidier, but it is a convenience — every protected page calls
- * {@link requireAccess} itself, so typing an address directly is refused by the server
- * that renders the page, not merely hidden from a menu.
+ * This is the real lock on the *pages*. The middleware turns unauthorised visitors away
+ * earlier, which is faster and tidier, but it is a convenience — every protected page
+ * calls {@link requireAccess} itself, so typing an address directly is refused by the
+ * server that renders the page, not merely hidden from a menu.
+ *
+ * Below this sits a second, entirely independent lock: Row-Level Security in the
+ * database, which refuses to hand over another company's rows even if this code were
+ * wrong. See src/lib/tenancy/wall.test.ts.
+ *
+ * Since Step 3 the question is not "does this person hold role X?" but "do they hold it
+ * **here**?" — see `effectiveRoles`.
  */
 
 /** The protected areas, named once so no page can mistype its own address. */
@@ -22,44 +28,28 @@ export const PATHS = {
   member: "/me",
 } as const;
 
-export type SignedInUser = {
-  id: string;
-  name: string;
-  email: string;
-  roles: Role[];
-  locale: Locale;
-};
+export type SignedInUser = Viewer;
 
 /** Who is signed in, or null. Never redirects — for menus and public pages. */
-export async function currentUser(): Promise<SignedInUser | null> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return null;
-  }
-  return {
-    id: session.user.id,
-    name: session.user.name ?? "",
-    email: session.user.email ?? "",
-    roles: parseRoles(session.user.roles),
-    locale: session.user.locale ?? DEFAULT_LOCALE,
-  };
+export async function currentUser(): Promise<Viewer | null> {
+  return currentViewer();
 }
 
 /**
- * Refuses the visitor unless they hold one of the roles that ROUTE_POLICY allows for
- * this path. Returns the signed-in user when they are allowed through.
+ * Refuses the visitor unless they hold, **in the place they are currently looking at**,
+ * one of the roles ROUTE_POLICY allows for this path.
  */
-export async function requireAccess(pathname: string): Promise<SignedInUser> {
-  const user = await currentUser();
+export async function requireAccess(pathname: string): Promise<Viewer> {
+  const viewer = await currentUser();
 
-  if (user === null) {
+  if (viewer === null) {
     redirect(`/signin?callbackUrl=${encodeURIComponent(pathname)}`);
   }
 
-  const required = rolesAllowedFor(pathname);
-  if (required !== null && !hasAnyRole(user.roles, required)) {
+  const required: readonly Role[] | null = rolesAllowedFor(pathname);
+  if (required !== null && !hasAnyRole(viewer.effectiveRoles, required)) {
     redirect(`/denied?from=${encodeURIComponent(pathname)}`);
   }
 
-  return user;
+  return viewer;
 }

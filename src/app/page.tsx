@@ -33,14 +33,17 @@ export default async function HomePage() {
 
   const mine = AREAS.filter((area) => {
     const required = rolesAllowedFor(area.path);
-    return required === null || hasAnyRole(user.roles, required);
+    return required === null || hasAnyRole(user.effectiveRoles, required);
   });
 
   return (
     <main>
       <h1>{t.common.appName}</h1>
       <p className="lede">
-        {t.nav.signedInAs} {user.name} — {user.roles.map((r) => t.roles[r]).join(", ")}
+        {t.nav.signedInAs} {user.name} —{" "}
+        {user.effectiveRoles.map((r) => t.roles[r]).join(", ")}
+        {user.activeScope ? ` · ${user.activeScope.companyName}` : ""}
+        {user.activeScope?.gymName ? ` — ${user.activeScope.gymName}` : ""}
       </p>
 
       <div className="card">

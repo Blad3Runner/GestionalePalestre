@@ -18,10 +18,9 @@ datasource db {
 
 /// The five roles of the platform.
 ///
-/// PLATFORM_ADMIN is genuinely global — the founders, who belong to no single gym.
-/// The other four describe what somebody does *at a gym*; until Step 3 creates gyms
-/// and Step 4 links people to them, they are held here at platform level so that
-/// login and route protection can be built and tested now.
+/// PLATFORM_ADMIN is genuinely global — the founders, who belong to no company.
+/// The other four describe what somebody does at a company or at one of its gyms,
+/// and live on `bridge_membership`. Step 4 reduces `person_role` to PLATFORM_ADMIN only.
 enum Role {
   PLATFORM_ADMIN
   GYM_OWNER
@@ -30,14 +29,100 @@ enum Role {
   MEMBER
 }
 
+/// How much of the platform a request may see. Set on the badge at the start of every
+/// transaction; the Row-Level Security policies read it from there.
+enum AccessLevel {
+  /// The founders. Everything, across every company.
+  PLATFORM
+  /// An owner with visibility over every gym of their own circuit.
+  COMPANY
+  /// Owner-type access restricted to a single gym.
+  GYM
+  /// Trainers, doctors, front desk: their gym only, no financial data.
+  WORKER
+  /// A client: their own rows, plus their gym's published catalogue.
+  CLIENT
+}
+
 /// The languages the interface is available in. Italian is the default.
 enum Language {
   IT
   EN
 }
 
-/// A human being — one global identity, deliberately carrying no gym_id.
-/// The same individual can later be a member at one gym and a trainer at another
+/// The tenant: a company, which may run several gyms.
+///
+/// Isolation happens here, not at the gym (docs/decisions.md, 2026-07-30). Every tenant
+/// table carries `companyId`, and the Row-Level Security policies compare it against the
+/// badge set at the start of the transaction.
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(200)
+  /// Partita IVA / codice fiscale. Not validated yet — the fiscal module comes later.
+  fiscalId  String?  @map("fiscal_id") @db.VarChar(40)
+  isActive  Boolean  @default(true) @map("is_active")
+  /// The company defines the catalogue. Gyms override only price and opening hours.
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  gyms        Gym[]
+  memberships Membership[]
+
+  @@map("dim_company")
+}
+
+/// One location. Belongs to exactly one company.
+model Gym {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(200)
+  city      String?  @db.VarChar(120)
+  /// Drives the Monday–Sunday week for the frequency discount. No `dim_date` table.
+  timezone  String   @default("Europe/Rome") @db.VarChar(60)
+  isActive  Boolean  @default(true) @map("is_active")
+  /// Overrides ONLY price and opening hours — a short explicit list, never a general
+  /// override mechanism (docs/decisions.md, 2026-07-30).
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  memberships Membership[]
+
+  @@index([companyId])
+  @@map("dim_gym")
+}
+
+/// Who is what, where.
+///
+/// **Step 3 creates only what the badge needs.** Lifecycle state, the member's level and
+/// package cap, the trainer's fields and the joined/left dates all arrive in Step 4
+/// (docs/decisions.md, 2026-07-30).
+model Membership {
+  id        String   @id @default(uuid()) @db.Uuid
+  personId  String   @map("person_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  /// **Null means the role covers every gym of the company.** Set means this one only.
+  gymId     String?  @map("gym_id") @db.Uuid
+  role      Role
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  gym     Gym?    @relation(fields: [gymId], references: [id], onDelete: Restrict)
+
+  @@unique([personId, companyId, gymId, role])
+  @@index([companyId])
+  @@index([gymId])
+  @@index([personId])
+  @@map("bridge_membership")
+}
+
+/// A human being — one global identity, deliberately carrying no company_id.
+/// The same individual can be a member at one company and a trainer at another
 /// (docs/decisions.md, 2026-07-29).
 model Person {
   id           String   @id @default(uuid()) @db.Uuid
@@ -53,6 +138,7 @@ model Person {
 
   roles               PersonRole[]
   passwordResetTokens PasswordResetToken[]
+  memberships         Membership[]
 
   @@map("dim_person")
 }

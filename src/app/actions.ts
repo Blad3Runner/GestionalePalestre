@@ -6,6 +6,7 @@ import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
 import { requestPasswordReset, completePasswordReset } from "@/lib/auth/password-reset";
 import { LOCALE_COOKIE, resolveLocale } from "@/i18n/locale";
+import { SCOPE_COOKIE } from "@/lib/tenancy/active-scope";
 
 /**
  * Everything the sign-in screens do on the server.
@@ -93,6 +94,17 @@ export async function resetPasswordAction(
   } as const;
 
   return { status: "idle", error: errors[outcome.reason] };
+}
+
+/** Remembers which company or gym the person is looking at. */
+export async function setScopeAction(formData: FormData): Promise<void> {
+  const scope = String(formData.get("scope") ?? "");
+  (await cookies()).set(SCOPE_COOKIE, scope, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+    sameSite: "lax",
+  });
+  revalidatePath("/", "layout");
 }
 
 export async function setLocaleAction(formData: FormData): Promise<void> {

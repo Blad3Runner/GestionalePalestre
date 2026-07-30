@@ -17,7 +17,19 @@ const { auth } = NextAuth(authConfig);
 export default auth((request) => {
   const { pathname } = request.nextUrl;
 
-  const roles = request.auth?.user ? parseRoles(request.auth.user.roles) : null;
+  // A coarse early filter: every role this person holds *anywhere*. Whether they hold it
+  // in the company they are currently looking at is decided precisely by `requireAccess`
+  // on the page itself, which is the real lock.
+  const user = request.auth?.user;
+  const roles = user
+    ? parseRoles([
+        ...(Array.isArray(user.roles) ? user.roles : []),
+        ...(Array.isArray(user.scopes)
+          ? user.scopes.map((scope) => (scope as { role?: unknown }).role)
+          : []),
+      ])
+    : null;
+
   const decision = canOpen(pathname, roles);
 
   if (decision.allowed) {

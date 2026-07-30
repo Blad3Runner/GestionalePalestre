@@ -232,6 +232,29 @@ a {
   border-color: var(--ok);
 }
 
+.scope-select {
+  max-width: 15rem;
+  padding: 0.2rem 0.35rem;
+  margin-right: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .area-list {
   margin: 0;
   padding-left: 1.1rem;

@@ -30,6 +30,10 @@ const it = {
     member: "Area personale",
     signedInAs: "Accesso effettuato come",
     yourRoles: "I tuoi ruoli",
+    viewing: "Stai vedendo",
+    wholeCircuit: "tutta la struttura",
+    allCompanies: "Tutte le società",
+    switchScope: "Cambia sede",
   },
   roles: {
     PLATFORM_ADMIN: "Amministratore piattaforma",
@@ -120,6 +124,10 @@ const en: Dictionary = {
     member: "My area",
     signedInAs: "Signed in as",
     yourRoles: "Your roles",
+    viewing: "You are viewing",
+    wholeCircuit: "the whole circuit",
+    allCompanies: "All companies",
+    switchScope: "Switch location",
   },
   roles: {
     PLATFORM_ADMIN: "Platform administrator",

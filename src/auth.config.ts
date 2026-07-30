@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import { parseRoles } from "@/lib/auth/roles";
+import { mergeScopes, parseScopes } from "@/lib/tenancy/scope";
 import { resolveLocale } from "@/i18n/locale";
 
 /**
@@ -20,10 +21,11 @@ export const authConfig = {
   },
 
   callbacks: {
-    /** Copies the roles onto the session token when somebody signs in. */
+    /** Copies the roles and the places they belong onto the token when somebody signs in. */
     jwt({ token, user, trigger, session }) {
       if (user) {
         token.roles = parseRoles((user as { roles?: unknown }).roles);
+        token.scopes = mergeScopes(parseScopes((user as { scopes?: unknown }).scopes));
         token.locale = resolveLocale((user as { locale?: unknown }).locale);
       }
       if (trigger === "update" && session && typeof session === "object") {
@@ -35,10 +37,11 @@ export const authConfig = {
       return token;
     },
 
-    /** Exposes the roles to server code and pages. */
+    /** Exposes the roles and scopes to server code and pages. */
     session({ session, token }) {
       session.user.id = typeof token.sub === "string" ? token.sub : "";
       session.user.roles = parseRoles(token.roles);
+      session.user.scopes = parseScopes(token.scopes);
       session.user.locale = resolveLocale(token.locale);
       return session;
     },

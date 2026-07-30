@@ -642,6 +642,51 @@ explicitly, with the same scrutiny as adding a table.
 
 ---
 
+## 2026-07-30 — Email provider: Resend (resolves OQ-7)
+
+**Decision:** Resend sends transactional email. The free tier more than covers password
+resets at these volumes.
+
+**Why:** owner's decision, taken deliberately quickly — simple to wire, and because every
+message already passes through the single unconnected `src/lib/email.ts`, swapping provider
+later costs almost nothing. Not a decision worth more than ten minutes.
+
+**Consequences:** `RESEND_API_KEY` and `EMAIL_FROM` join the environment configuration.
+**Without a key the system still logs the message to the terminal instead of sending it**, so
+development and tests never depend on an external service or on network access. The owner
+must create the Resend account and paste the key into `.env` — no account is created on
+their behalf.
+
+**Still outstanding before real clients use this:** Resend is US-headquartered. The project
+requires EU/EEA data storage, so before go-live either confirm Resend's EU region and sign a
+data-processing agreement, or move to an EU provider. Password-reset emails contain a name
+and an email address, which is personal data. This is a go-live item, not a build blocker.
+
+---
+
+## 2026-07-30 — `bridge_membership` moves into Step 3, in minimal form
+
+**Decision:** a minimal `bridge_membership` — person, company, optional gym, role, active —
+is created in **Step 3**, not Step 4. Step 4 grows it to its full shape.
+
+**Why:** forced by the design, not chosen. The badge carries the access level, and there is
+no way to know that somebody is an owner of Company A without a row saying so. Step 3
+without membership could set a badge but could never *justify* one. Rule E1 says every table
+is marked with the step that needs it — and Step 3 genuinely needs this one.
+
+**Consequences:** the split is deliberate and narrow.
+
+- **Step 3 gets only what the badge requires:** who, which company, which gym if any, which
+  role, still active.
+- **Step 4 adds everything else:** lifecycle state, level, package cap, default trainer,
+  trainer fields, `bridge_trainer_service`, joined and left dates, `fact_lifecycle_event`,
+  `audit_log`, and the member screens.
+
+This is a sequencing consequence of the owner's own design rather than a new decision about
+the model. It is recorded here so it is visible and can be objected to.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
@@ -657,12 +702,7 @@ told otherwise, matching how euros behave.
 **OQ-6 · The couple Starter Pack.** €84/person — two separate people, each with their own
 4 PT sessions, osteopath and nutritionist evaluation. Proceeding on that reading.
 
-**OQ-7 · Which service actually sends email?** ⚠ *Blocking before anyone outside the
-project uses the system.* Step 2 built the whole "I forgot my password" flow, but nothing
-sends the message: the link is printed in the terminal instead. Choosing a provider is a
-real decision — recurring cost, EU-only hosting, and a GDPR data-processing agreement —
-so it was not invented. Password reset does not work for a real person until this is
-answered. Only `src/lib/email.ts` changes once it is.
+*(OQ-7, the email provider, was answered on 2026-07-30: **Resend**. See the decision above.)*
 
 ---
 

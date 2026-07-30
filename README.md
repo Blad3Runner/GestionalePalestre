@@ -53,8 +53,18 @@ Windows background service, so there is nothing to start by hand.
 npm install
 ```
 
-Then copy `.env.example` to a file called `.env` and put the real database password in
-it. `.env` is never committed — it is the one file that holds secrets.
+Then copy `.env.example` to a file called `.env` and fill it in. `.env` is never committed
+— it is the one file that holds secrets. Then create the restricted database account the
+application runs as:
+
+```bash
+npm run db:setup-roles
+```
+
+This matters more than it looks. The application deliberately connects with an account
+that is **not** a database superuser and **cannot** bypass the walls between companies —
+because PostgreSQL ignores those walls entirely for superusers. Migrations use a second,
+privileged account. Both are set in `.env`.
 
 ### The three commands you need
 
@@ -85,19 +95,28 @@ Run this once to create the demo accounts:
 npm run db:seed
 ```
 
-All five use the password `Palestra2026!`. They exist only on your computer.
+All of them use the password `Palestra2026!`. They exist only on your computer.
 
-| Email | Role | What they can see |
+There are **two demo companies**: *Studio Seregno* with one gym, and *Circuito Nord* with
+two (Monza and Como).
+
+| Email | Who they are | What they can see |
 | --- | --- | --- |
-| `admin@example.com` | Platform admin | Platform administration |
-| `titolare@example.com` | Gym owner **and** trainer | Gym management, front desk, trainer area |
-| `reception@example.com` | Front desk | Front desk |
-| `trainer@example.com` | Trainer *(set to English)* | Trainer area |
-| `cliente@example.com` | Member | My area |
+| `admin@example.com` | Platform admin | Everything, across both companies |
+| `titolare@example.com` | Owner **and** trainer at Studio Seregno | The whole company |
+| `reception@example.com` | Front desk at Seregno | That gym |
+| `trainer@example.com` | Trainer at Seregno *(in English)* | That gym |
+| `cliente@example.com` | Member at Seregno | Only their own things |
+| `cliente2@example.com` | A second member at the same gym | Only their own things |
+| `nord@example.com` | Owner of the whole Circuito Nord | Both Monza and Como |
+| `monza@example.com` | Owner of **Monza only** | Monza — never Como |
 
-Try typing a forbidden address by hand — for example sign in as `cliente@example.com`
-and go to <http://localhost:3000/admin>. You will be refused, not merely shown an empty
-menu.
+Two things worth trying by hand:
+
+- Sign in as `cliente@example.com` and type <http://localhost:3000/admin> into the address
+  bar. You will be refused, not merely shown an empty menu.
+- Sign in as `monza@example.com` and note that Como does not exist as far as they are
+  concerned — not hidden, genuinely unreachable, enforced by the database itself.
 
 **Password reset does not send email yet.** No email service has been chosen (see OQ-7 in
 [docs/decisions.md](docs/decisions.md)). Until one is, the reset link is printed in the
@@ -115,16 +134,23 @@ terminal window where `npm run dev` is running.
 
 ## Status
 
-**Steps 1 and 2 of ten are complete.**
+**Steps 1 to 3 of ten are complete. 178 automated tests pass.**
 
 - **Step 1 — skeleton.** The application runs, connects to PostgreSQL, has a working
   migration command and a passing test suite.
 - **Step 2 — login and roles.** Real accounts with email and password, sign out, password
-  reset, the five roles (a person may hold several), Italian and English throughout, and
-  page protection enforced by the server rather than hidden in a menu. 141 automated
-  tests, including every role against every protected area.
+  reset, the five roles, Italian and English throughout, and page protection enforced by
+  the server rather than hidden in a menu.
+- **Step 3 — tenant separation.** Companies own gyms; the company is the tenant. Two
+  independent locks: the application filters its own queries, and **the database itself
+  refuses to hand over another company's rows** even if the application asks wrongly.
 
-There is deliberately **no business functionality yet**: no gyms, no credits, no
-bookings. Those arrive one step at a time, in the order set out in
-[docs/build-plan.md](docs/build-plan.md). Step 3 is tenant separation — the walls between
-gyms, and the most important step in the project.
+  The second lock is real, not aspirational. The application connects with a restricted
+  account that cannot bypass it, and **29 wall tests** bypass the application entirely to
+  query the database directly and confirm the refusal. Point those same tests at a
+  privileged connection and 22 of them fail immediately — which is how we know they are
+  testing something.
+
+There is deliberately **no business functionality yet**: no credits, no bookings, no
+prices. Those arrive one step at a time, in the order set out in
+[docs/build-plan.md](docs/build-plan.md). Step 4 is people, roles and lifecycle.

@@ -12,7 +12,7 @@ architecture rules in [../CLAUDE.md](../CLAUDE.md).
 
 - [x] Step 1 — Project skeleton *(done 2026-07-29)*
 - [x] Step 2 — Login and roles *(done 2026-07-29)*
-- [ ] Step 3 — Tenant separation
+- [x] Step 3 — Tenant separation *(done 2026-07-30)*
 - [ ] Step 4 — People, roles within a gym, and lifecycle
 - [ ] Step 5 — Catalogue: services, prices, packs and levels
 - [ ] Step 6 — The credit wallet as a ledger
@@ -23,17 +23,16 @@ architecture rules in [../CLAUDE.md](../CLAUDE.md).
 
 *Step 1 built the skeleton: the application runs, PostgreSQL 18 is connected, migrations
 and tests both work. Step 2 added real accounts, the five roles and server-enforced page
-protection, with 141 automated tests. No gyms and no business data yet — that is correct.*
+protection, with 141 automated tests. No companies, no gyms and no business data yet —
+that is correct.*
 
-**Before starting Step 3, read two notes in [decisions.md](decisions.md):**
+**Steps 3 and 4 below were rewritten on 2026-07-30** to match the owner's structural
+decisions: the tenant is the **company**, not the gym. The superuser warning that used to
+sit here is now the first item of Step 3, where it cannot be missed.
 
-1. *The superuser warning.* Row-Level Security silently does nothing while the application
-   still connects as `postgres`. Step 3 must create a separate application role first.
-2. *Roles currently live on the person, not on a gym.* Step 4 moves the four gym-scoped
-   roles into `bridge_gym_person`; the route policy gains a gym dimension then.
-
-*Also open: **OQ-7**, which email service actually sends the password-reset message.
-Nothing sends it today — the link is printed in the terminal.*
+*Roles currently sit on the person. Step 4 reduces `person_role` to platform admin only and
+moves the rest into `bridge_membership`; page protection gains a company and gym dimension
+along the way.*
 
 ---
 
@@ -98,42 +97,69 @@ policies beyond a sane minimum · social login · two-factor.
 
 ## Step 3 — Tenant separation
 
-**What it is:** the walls between gyms. The most important step in the project — a
-mistake here is a catastrophe, not a bug.
+**What it is:** the walls between companies. **The tenant is the company, not the gym** — a
+company (a circuit) owns one or more gyms. The most important step in the project: a mistake
+here is a catastrophe, not a bug.
 
-**Build:** the `gym` table · `gym_id` on every business table created from here on ·
-automatic filtering by gym on every query, so it cannot be forgotten · PostgreSQL
-Row-Level Security as a second, independent lock inside the database itself · a per-gym
-settings store, which is where credit values, price bands, discount percentages, time
-windows and thresholds will live · a gym switcher for the platform admin · two demo gyms
-seeded with obviously different data.
+**Build — and the order is part of the design, not a suggestion:**
 
-**Done when:** logging in as Gym A's owner shows only Gym A; reaching Gym B's data by
-typing its address returns nothing; and a test that bypasses the application entirely and
-queries the database directly, as a user belonging to Gym A, also returns nothing for
-Gym B. All three must pass.
+1. **The restricted database account, before a single policy exists.** Not a superuser,
+   without `BYPASSRLS`, owner of nothing. Migrations keep the privileged account.
+   *Row-Level Security is silently ignored for superusers and for the owner of a table.*
+   Build the walls while the application still connects as `postgres` and every test will
+   pass while nothing whatsoever is protected.
+2. **`dim_company` and `dim_gym`.** Every gym belongs to exactly one company. Every tenant
+   table carries `company_id`, plus `gym_id` where the row belongs to one location.
+3. **A minimal `bridge_membership`** — person, company, optional gym (null means the whole
+   circuit), role, active. Only what the badge needs; its full shape arrives in Step 4.
+   Without it there is no way to know that somebody is an owner of Company A.
+4. **The badge.** Every request opens its transaction by setting company, optional gym,
+   access level and person. Every database interaction therefore runs inside a transaction —
+   which is also precisely what makes it safe when connections are shared: a badge cannot
+   leak into another request's query.
+5. **`ENABLE` *and* `FORCE ROW LEVEL SECURITY`** on every tenant table, with policies for the
+   five access levels — platform admin, company, gym, worker, client.
+6. **Configuration.** The company defines; a gym overrides **only** price and opening hours.
+7. **A company/gym switcher for the platform admin**, and two demo companies — one of them
+   with two gyms — seeded with obviously different data.
 
-**Not in this step:** members, trainers, services, prices or any real business entity ·
-the settings *screen* (the store is enough for now) · billing gyms for using the platform.
+**Done when the five wall tests pass, run on the restricted account and written to fail if
+the wall is fake:**
+
+- (a) a company A badge issuing a raw query for company B's rows returns **nothing**
+- (b) a gym-level badge cannot read sibling gyms of the **same** company
+- (c) a client badge cannot read another client's rows in the same gym
+- (d) with **no badge at all**, tenant tables return nothing
+- (e) the application's own connection is provably **not** a superuser and cannot bypass
+  Row-Level Security
+
+**Not in this step:** lifecycle states, client detail, trainer detail,
+`bridge_trainer_service`, the audit log or member screens — all Step 4 · services, prices or
+any catalogue — Step 5 · the published layer beyond what the wall tests require · a settings
+*screen* (the store is enough) · billing companies for using the platform.
 
 ---
 
-## Step 4 — People, roles within a gym, and lifecycle
+## Step 4 — People, roles and lifecycle
 
-**What it is:** connecting real humans to real gyms.
+**What it is:** connecting real humans to real companies and gyms, in full.
 
-**Build:** the `bridge_gym_person` table — who belongs to which gym, in which role(s),
-with which lifecycle state (Lead → Starter → Client → Dormant/Churn) and since when · the
-`bridge_gym_trainer` table — a trainer's services, compensation model and active status at
-that gym · `client_profile` for gym-specific member detail · `lifecycle_event` recording
-every state change with its date · deactivation rather than deletion for trainers, with
-history preserved · a member list and a member detail page · the full audit log
-infrastructure, switched on from here onward.
+**Build:** `bridge_membership` grown to its complete shape — lifecycle state
+(Lead → Starter → Client → Dormant/Churn) and since when; the member's level, package cap
+and default trainer (this replaces `dim_client_profile`); the trainer's fields (this
+replaces `bridge_gym_trainer`) · `bridge_trainer_service`, a genuine many-to-many between a
+trainer and the services they deliver, **carrying no price** · `dim_trainer_compensation`,
+dated — per-session (junior), revenue share (senior), owner draw; **this is where seniority
+lives, and it changes what a trainer earns, never what a client pays** ·
+`fact_lifecycle_event` recording every state change with its date · **`person_role` reduced
+to platform admin only** · deactivation rather than deletion for trainers, with history
+preserved · **the full `audit_log`, switched on from here onward** — this is what makes
+operational rows safe to update · a member list and a member detail page.
 
-**Done when:** the owner can create a member, see them listed, open their profile, and
-watch their state change from Lead to Starter with the change recorded and dated; the same
-person can exist at two gyms with different roles; a deactivated trainer disappears from
-scheduling but keeps their history.
+**Done when:** the owner can create a member, see them listed, open their profile, and watch
+their state change from Lead to Starter with the change recorded and dated; the same person
+can exist at two companies with different roles; a deactivated trainer disappears from
+scheduling but keeps their history; and every one of those changes appears in the audit log.
 
 **Not in this step:** the anamnesi and any health data — that needs the art. 9 consent
 flow and is deliberately separate · credits · bookings · automations or emails.

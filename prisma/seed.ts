@@ -4,60 +4,129 @@ import { hash } from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client.ts";
 
 /**
- * Demo accounts, so the five roles can actually be tried.
+ * Demo data, so the walls between companies can actually be tried.
+ *
+ * Runs with the **privileged** account, because seeding is a setup operation like a
+ * migration — the restricted account the application uses could not see past its own
+ * badge to write this.
  *
  * These are development fixtures, not real people. The password is the same for all of
- * them and is printed below on purpose — it protects nothing. Running this again just
- * refreshes them; it never touches anybody else.
+ * them and printed below on purpose: it protects nothing.
+ *
+ * The shape is chosen to make the five wall tests meaningful:
+ *
+ *   Studio Seregno   one gym    the founding tenant
+ *   Circuito Nord    two gyms   a circuit, so a gym-level owner has a sibling to not see
  */
 
 const DEMO_PASSWORD = "Palestra2026!";
 
-const PEOPLE = [
-  {
-    email: "admin@example.com",
-    name: "Ada Fondatrice",
-    roles: ["PLATFORM_ADMIN"] as const,
-    language: "IT" as const,
-    description: "platform admin — sees the platform administration area",
-  },
-  {
-    email: "titolare@example.com",
-    name: "Matteo Titolare",
-    roles: ["GYM_OWNER", "TRAINER"] as const,
-    language: "IT" as const,
-    description: "gym owner AND trainer — proves one person can hold two roles",
-  },
-  {
-    email: "reception@example.com",
-    name: "Sara Reception",
-    roles: ["STAFF"] as const,
-    language: "IT" as const,
-    description: "front desk — front desk area only",
-  },
-  {
-    email: "trainer@example.com",
-    name: "Luca Trainer",
-    roles: ["TRAINER"] as const,
-    language: "EN" as const,
-    description: "trainer, set to English — proves the language follows the account",
-  },
-  {
-    email: "cliente@example.com",
-    name: "Giulia Cliente",
-    roles: ["MEMBER"] as const,
-    language: "IT" as const,
-    description: "member — personal area only",
-  },
-];
-
 async function main() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-  const prisma = new PrismaClient({ adapter });
+  const connectionString =
+    process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL;
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
   const passwordHash = await hash(DEMO_PASSWORD, 12);
 
-  for (const person of PEOPLE) {
+  const seregno = await prisma.company.upsert({
+    where: { id: "11111111-1111-1111-1111-111111111111" },
+    update: { name: "Studio Seregno" },
+    create: { id: "11111111-1111-1111-1111-111111111111", name: "Studio Seregno" },
+  });
+
+  const nord = await prisma.company.upsert({
+    where: { id: "22222222-2222-2222-2222-222222222222" },
+    update: { name: "Circuito Nord" },
+    create: { id: "22222222-2222-2222-2222-222222222222", name: "Circuito Nord" },
+  });
+
+  const gyms = [
+    { id: "aaaaaaaa-0000-0000-0000-000000000001", companyId: seregno.id, name: "Seregno", city: "Seregno" },
+    { id: "bbbbbbbb-0000-0000-0000-000000000001", companyId: nord.id, name: "Monza", city: "Monza" },
+    { id: "bbbbbbbb-0000-0000-0000-000000000002", companyId: nord.id, name: "Como", city: "Como" },
+  ];
+
+  for (const gym of gyms) {
+    await prisma.gym.upsert({
+      where: { id: gym.id },
+      update: { name: gym.name, city: gym.city, companyId: gym.companyId },
+      create: gym,
+    });
+  }
+
+  const [seregnoGym, monza, como] = gyms;
+
+  const people = [
+    {
+      email: "admin@example.com",
+      name: "Ada Fondatrice",
+      language: "IT" as const,
+      platformRoles: ["PLATFORM_ADMIN"] as const,
+      memberships: [] as { companyId: string; gymId: string | null; role: string }[],
+      description: "platform admin — sees every company",
+    },
+    {
+      email: "titolare@example.com",
+      name: "Matteo Titolare",
+      language: "IT" as const,
+      platformRoles: [] as const,
+      memberships: [
+        { companyId: seregno.id, gymId: null, role: "GYM_OWNER" },
+        { companyId: seregno.id, gymId: seregnoGym.id, role: "TRAINER" },
+      ],
+      description: "owner AND trainer at Studio Seregno — one person, two roles",
+    },
+    {
+      email: "reception@example.com",
+      name: "Sara Reception",
+      language: "IT" as const,
+      platformRoles: [] as const,
+      memberships: [{ companyId: seregno.id, gymId: seregnoGym.id, role: "STAFF" }],
+      description: "front desk at Seregno",
+    },
+    {
+      email: "trainer@example.com",
+      name: "Luca Trainer",
+      language: "EN" as const,
+      platformRoles: [] as const,
+      memberships: [{ companyId: seregno.id, gymId: seregnoGym.id, role: "TRAINER" }],
+      description: "trainer at Seregno, in English",
+    },
+    {
+      email: "cliente@example.com",
+      name: "Giulia Cliente",
+      language: "IT" as const,
+      platformRoles: [] as const,
+      memberships: [{ companyId: seregno.id, gymId: seregnoGym.id, role: "MEMBER" }],
+      description: "member at Seregno",
+    },
+    {
+      email: "cliente2@example.com",
+      name: "Paolo Cliente",
+      language: "IT" as const,
+      platformRoles: [] as const,
+      memberships: [{ companyId: seregno.id, gymId: seregnoGym.id, role: "MEMBER" }],
+      description: "a SECOND member at the same gym — wall test (c) needs one",
+    },
+    {
+      email: "nord@example.com",
+      name: "Nadia Nord",
+      language: "IT" as const,
+      platformRoles: [] as const,
+      memberships: [{ companyId: nord.id, gymId: null, role: "GYM_OWNER" }],
+      description: "owner of the whole Circuito Nord — sees both Monza and Como",
+    },
+    {
+      email: "monza@example.com",
+      name: "Marco Monza",
+      language: "IT" as const,
+      platformRoles: [] as const,
+      memberships: [{ companyId: nord.id, gymId: monza.id, role: "GYM_OWNER" }],
+      description: "owner of Monza ONLY — must not see Como. Wall test (b)",
+    },
+  ];
+
+  for (const person of people) {
     const record = await prisma.person.upsert({
       where: { email: person.email },
       update: { name: person.name, passwordHash, language: person.language },
@@ -69,15 +138,32 @@ async function main() {
       },
     });
 
-    // Replace the roles outright, so editing this file is always reflected.
+    // Replace outright, so editing this file is always reflected.
     await prisma.personRole.deleteMany({ where: { personId: record.id } });
-    await prisma.personRole.createMany({
-      data: person.roles.map((role) => ({ personId: record.id, role })),
-    });
+    if (person.platformRoles.length > 0) {
+      await prisma.personRole.createMany({
+        data: person.platformRoles.map((role) => ({ personId: record.id, role })),
+      });
+    }
+
+    await prisma.membership.deleteMany({ where: { personId: record.id } });
+    for (const membership of person.memberships) {
+      await prisma.membership.create({
+        data: {
+          personId: record.id,
+          companyId: membership.companyId,
+          gymId: membership.gymId,
+          role: membership.role as "GYM_OWNER" | "STAFF" | "TRAINER" | "MEMBER",
+        },
+      });
+    }
 
     console.log(`  ${person.email.padEnd(24)} ${person.description}`);
   }
 
+  console.log("");
+  console.log(`  Studio Seregno   1 gym  (${seregnoGym.name})`);
+  console.log(`  Circuito Nord    2 gyms (${monza.name}, ${como.name})`);
   console.log("");
   console.log(`  Password for all of them: ${DEMO_PASSWORD}`);
   console.log("");

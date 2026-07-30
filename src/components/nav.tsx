@@ -4,6 +4,7 @@ import { currentUser, PATHS } from "@/lib/auth/guard";
 import { getLocaleAndText } from "@/i18n/server";
 import { rolesAllowedFor } from "@/lib/auth/route-policy";
 import { hasAnyRole } from "@/lib/auth/roles";
+import { ScopeSwitcher } from "@/components/scope-switcher";
 import type { Dictionary } from "@/i18n/dictionaries";
 
 /**
@@ -30,7 +31,7 @@ export async function Nav() {
   const visible = user
     ? AREAS.filter((area) => {
         const required = rolesAllowedFor(area.path);
-        return required === null || hasAnyRole(user.roles, required);
+        return required === null || hasAnyRole(user.effectiveRoles, required);
       })
     : [];
 
@@ -51,6 +52,8 @@ export async function Nav() {
       ) : null}
 
       <div className="topbar-right">
+        {user ? <ScopeSwitcher viewer={user} t={t} /> : null}
+
         <form action={setLocaleAction} className="inline">
           <input type="hidden" name="locale" value={locale === "it" ? "en" : "it"} />
           <button type="submit" className="link-button" title={t.common.language}>
