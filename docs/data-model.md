@@ -46,8 +46,8 @@ These are receipts. A stored *balance* would be a violation; a stored *receipt* 
 
 | Table | Step | What it holds |
 | --- | --- | --- |
-| `dim_company` | 3 | **The tenant.** A circuit owning one or more gyms. Name, fiscal identifiers, status, and the configuration bag that makes every business rule adjustable per client. |
-| `dim_gym` | 3 | A single location. Belongs to exactly one company. Name, city, timezone, status, and its own configuration, which overrides the company's. |
+| `dim_company` | 3 | **The tenant.** A circuit owning one or more gyms. Name, fiscal identifiers, status, and the configuration that makes every business rule adjustable per client. **The company defines the service catalogue.** |
+| `dim_gym` | 3 | A single location. Belongs to exactly one company. Name, city, timezone, status. **A gym may override only `price` and `opening hours`** — a short, explicit list, not a general override mechanism. Every additional overridable field costs resolution logic in the code and a permanent "inherited or set here?" question in every screen. Adding one is a decision, taken with the same scrutiny as adding a table. |
 | `dim_person` | **2 · built** | A human being: name, email, password hash, phone, language. **No `company_id`** — one global identity, which is what lets the same individual be a member at one company and a trainer at another. |
 | `person_role` | **2 · built** | Shrinks to **platform admin only** in Step 4. Everything else moves to `bridge_membership`. |
 | `password_reset_token` | **2 · built** | Pending "I forgot my password" requests. Stores only a hash of the token. |
@@ -71,12 +71,34 @@ These are receipts. A stored *balance* would be a violation; a stored *receipt* 
 
 | Table | Step | What it holds |
 | --- | --- | --- |
-| `dim_service` | 5 | PT, mobility, osteopathy, BIA, water. Category, VAT treatment, and whether it counts toward the weekly frequency discount. |
-| `dim_price_band` | 5 | Price per head by group size (50 / 35 / 30 / 25 / 20), with `valid_from` / `valid_to`. |
+| `dim_service` | 5 | PT, mobility, osteopathy, postural gymnastics, massage, BIA, water. Category, VAT treatment, and whether it counts toward the weekly frequency discount. |
+| `dim_price` | 5 | **Was `dim_price_band`.** Price rows, dated. See below. |
+| `bridge_trainer_service` | 4 | Which services a trainer delivers. A genuine many-to-many: `membership_id`, `service_id`. **Carries no price.** |
 | `dim_discount_rule` | 5 | The frequency scale: 2 entries → −7%, 3 → −14%. Dated. |
 | `dim_product` | 5 | **Merged `dim_pack` + `dim_starter_product`.** A `kind` of credit pack or starter. Credit packs carry credits granted, cash price, resulting cash-per-credit and validity in months; starters carry their contents as structured data (4 PT + 1 osteopath + 1 nutritionist evaluation). Dated. |
-| `dim_trainer_compensation` | 4 | Per trainer, dated: per-session, revenue share, or owner draw. |
+| `dim_trainer_compensation` | 4 | Per trainer, dated: per-session (junior), revenue share (senior), or owner draw. **This is where seniority lives** — it changes what a trainer earns, never what a client pays. |
 | *(reserved)* `dim_subscription_product` | later | Recurring memberships. Rules still deferred. |
+
+### `dim_price` in detail
+
+Price is a property of **service + duration**, never of the trainer link. Held as **rows**,
+not columns, so a 45-minute option is added as data rather than as a migration.
+
+| Column | Notes |
+| --- | --- |
+| `service_id` | Always set |
+| `group_size` | Optional. Set for services priced per head — PT: 1 → 50, 2 → 35, 3 → 30, 4 → 25, 5–6 → 20 |
+| `duration_minutes` | Optional. Set for services priced by length — osteopathy 30, massage 60 and 90 |
+| `price` | In credits |
+| `valid_from`, `valid_to` | Changing a price never rewrites history |
+
+A service may use either axis or both: a 60-minute group mobility class sets both.
+A massage that only sells 60 and 90 simply has two rows.
+
+**Seniority-based pricing is deliberately not expressible here.** Confirmed against the
+founding tenant's specification, which prices PT purely by group size and puts junior and
+senior into compensation. If it is ever wanted, it is a separate table and a separate
+decision — never a column added to this one.
 
 ---
 
@@ -138,8 +160,12 @@ subscription gyms the same toggle uses time elapsed instead of credits.
 | `dim_pack` + `dim_starter_product` | One `dim_product` with a `kind` |
 | `fact_entitlement_grant` + `_line` | One `fact_entitlement` |
 | `dim_level` | A column, with permitted values in gym configuration |
+| `dim_price_band` | Renamed `dim_price`; group size and duration are now two optional axes on the same dated rows |
 
-Roughly 28 tables become 21.
+**Added since:** `dim_company` (the tenant) and `bridge_trainer_service` (a genuine
+many-to-many, carrying no price).
+
+Roughly 28 tables become 22.
 
 ---
 
@@ -156,6 +182,30 @@ membership in the badge's company or gym, or as one's own row.
 Five wall tests run **on the restricted account** and are written to fail if the wall is
 fake — including an assertion that the application's own connection is not a superuser and
 cannot bypass Row-Level Security.
+
+### The published layer
+
+A client reads **their own gym's published catalogue** — services, prices, schedule, trainer
+public profiles, gym details — **plus their own rows, and nothing else.** One rule, not a
+growing list of exceptions.
+
+It is built as **read-only views**. This also settles column visibility without
+column-by-column permissions: a trainer's public profile — name, photo, biography, services
+delivered — is a view over `bridge_membership`; their compensation and private details live
+in the same table and are simply absent from the view. Publishing something becomes a
+deliberate act: adding it to a view.
+
+### Workers and money: insert without read
+
+At check-in the trainer writes **one field** — the booking moves from held to attended. The
+credit charge is computed server-side from the session's service and duration and written by
+the system. The trainer never enters a financial value.
+
+PostgreSQL allows different policies per operation, so a worker's badge gets **INSERT on
+`fact_credit_movement` with no SELECT**: they can cause a ledger entry without ever reading
+one. The sufficiency check runs in a function with elevated rights returning only
+sufficient/insufficient — never the figure, so "blocked — insufficient credits" never leaks
+a balance. No general privileged escape hatch is needed.
 
 ---
 

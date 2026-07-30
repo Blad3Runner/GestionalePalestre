@@ -546,6 +546,102 @@ would be a violation; a stored *receipt* is not.
 
 ---
 
+## 2026-07-30 — Trainers and services: a real many-to-many, with price on the service side
+
+**Decision:** `bridge_trainer_service` is created — a genuine many-to-many between a
+trainer's membership row and the services they deliver. Services are configurable records
+(PT, mobility, osteopathy, postural gymnastics, massage), and a worker's profile is tied to
+what they deliver.
+
+**Price does not go on that bridge.** Price is a property of **service + duration**, held on
+the service side, as **rows** — `(service, duration, price)` — never as columns
+`price_30 / price_60 / price_90`.
+
+**Confirmed against the founding tenant's specification:** price does **not** vary with a
+trainer's seniority. The spec prices PT purely by group size (solo 50 · in 2 → 35 · in 3 →
+30 · in 4 → 25 · small group 20) with no trainer dimension, and puts seniority where it
+belongs — in compensation: "per-session (junior), revenue share (senior), owner draw". A
+senior osteopath therefore costs the client the same and earns more. That distinction
+already lives in `dim_trainer_compensation`, dated.
+
+**Why rows rather than columns:** a massage may sell only 60 and 90 minutes; osteopathy
+sells 30 (the Starter Pack proves it). Rows let a 45-minute option be added as data,
+without a database migration.
+
+**Consequences:** `dim_price_band` becomes `dim_price`, keyed on service plus two optional
+axes — group size *and* duration. PT rows set group size; osteopathy rows set duration; a
+60-minute group mobility class sets both. Still dated with `valid_from` / `valid_to`;
+changing a price never rewrites history. If seniority-based pricing is ever wanted, it is a
+separate table and a separate decision — not a column added here.
+
+---
+
+## 2026-07-30 — Check-in is a state transition; the system writes the money
+
+**Decision:** at check-in the trainer writes **one field**: the booking moves from held to
+attended. The trainer does **not** enter a financial value. The credit charge is a
+server-side consequence, computed from the session's service and duration, which are
+already fixed. The ledger entry is written by the system under its own authority.
+
+Whether a trainer *reads* the session's credit cost is a product choice and is harmless —
+prices are not confidential and the client already sees them at booking. What stays closed
+to workers: **wallet balances, payment records, revenue, and anything about clients other
+than the one in front of them.**
+
+When check-in cannot proceed because the client is short of credits, the system returns
+**"blocked — insufficient credits" without ever exposing the balance.**
+
+**Why:** owner's correction. It dissolves the apparent conflict between "trainers do
+check-in" and "workers see no financial data" — the trainer never handles the number.
+
+**Consequences, and they are neat.** PostgreSQL allows different Row-Level Security rules
+per operation, so a worker's badge can be granted **INSERT on `fact_credit_movement` with no
+SELECT at all**: they can cause a ledger entry to exist without ever being able to read one.
+The sufficiency check runs in a function with elevated rights that returns only
+sufficient/insufficient — never the figure. No general-purpose privileged escape hatch is
+needed anywhere.
+
+---
+
+## 2026-07-30 — Clients see a published layer, not a list of exceptions
+
+**Decision:** a client may read **their own gym's published catalogue** — services, prices,
+schedule, trainer public profiles, gym details — **plus their own rows, and nothing else.**
+
+**Why:** owner's correction. Carving out "bookable sessions" alone would have hit the same
+wall immediately for services, prices and trainer profiles: a client cannot book from a
+schedule when they cannot see what the sessions are. One rule replaces a list of exceptions
+that would only have grown.
+
+**Consequences:** the published layer is built as a set of **read-only views**, which also
+settles a problem that would otherwise have needed column-by-column permissions. A trainer's
+public profile — name, photo, biography, services delivered — is a view over the membership
+record; their compensation and private details sit in the same table and are simply not in
+the view. Adding something to the published layer becomes a deliberate act: putting it in a
+view.
+
+---
+
+## 2026-07-30 — Configuration: company defines, gym overrides — but only where it varies
+
+**Decision:** the company defines the service catalogue; a gym may override **price** and
+**opening hours**. A company owner automatically receives gym-level access to every gym in
+their circuit.
+
+**Only fields that genuinely vary by location are overridable, and they are a short explicit
+list — not a general override mechanism.**
+
+**Why:** owner's decision. It is exactly the circuit-with-different-pricing case. The
+restraint matters: every overridable field costs resolution logic in the code and a
+permanent "is this inherited or set here?" question in every screen that touches it. Most
+configuration does not vary by location and must not be made to look as though it might.
+On access: the alternative is an owner who cannot see their own schedule.
+
+**Consequences:** adding a field to the overridable list is a decision to be taken
+explicitly, with the same scrutiny as adding a table.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
