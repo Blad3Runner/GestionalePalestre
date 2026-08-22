@@ -89,48 +89,84 @@ npm test
 
 ### Logging in
 
-Run this once to create the demo accounts:
+Run this once to build the demo world:
 
 ```bash
 npm run db:seed
 ```
 
-All of them use the password `Palestra2026!`. They exist only on your computer.
+All accounts use the password `Palestra2026!`. They exist only on your computer.
 
-There are **two demo companies**: *Studio Seregno* with one gym, and *Circuito Nord* with
-two (Monza and Como).
+There are **two demo companies, deliberately shaped differently**: *Studio Seregno* — one
+gym, sells credits, the founding tenant — and *Circuito Nord* — two gyms (Monza and Como),
+sells subscriptions.
 
 | Email | Who they are | What they can see |
 | --- | --- | --- |
-| `admin@example.com` | Platform admin | Everything, across both companies |
+| `admin@example.com` | Platform admin | Everything, across every company |
 | `titolare@example.com` | Owner **and** trainer at Studio Seregno | The whole company |
 | `reception@example.com` | Front desk at Seregno | That gym |
-| `trainer@example.com` | Trainer at Seregno *(in English)* | That gym |
-| `cliente@example.com` | Member at Seregno | Only their own things |
-| `cliente2@example.com` | A second member at the same gym | Only their own things |
+| `trainer@example.com` | Trainer at Seregno, active *(in English)* | That gym |
+| `senior@example.com` | Trainer at Seregno, **deactivated** | Nothing — but his history survives |
+| `cliente@example.com` | Member at Seregno — Client | Only their own things |
+| `cliente2@example.com` | Member at Seregno — Lead | Only their own things |
+| `starter@example.com` | Member at Seregno — Starter | Only their own things |
+| `dormiente@example.com` | Member at Seregno — Dormant | Only their own things |
+| `perso@example.com` | Member at Seregno — Churn | Only their own things |
 | `nord@example.com` | Owner of the whole Circuito Nord | Both Monza and Como |
 | `monza@example.com` | Owner of **Monza only** | Monza — never Como |
+| `reception.nord@example.com` | Front desk at Monza | That gym |
+| `trainer.nord@example.com` | Trainer at Monza, active | That gym |
+| `trainer.como@example.com` | Trainer at Como, **deactivated** | Nothing — history survives |
+| `nord.lead@example.com` | Member at Monza — Lead | Only their own things |
+| `como.cliente@example.com` | Member at Como — Client | Only their own things |
+| `duecappelli@example.com` | **Trainer at Seregno *and* member at Nord** | Different things in each |
 
-Two things worth trying by hand:
+### Trying it properly
+
+**Work through [docs/acceptance/steps-1-4.md](docs/acceptance/steps-1-4.md).** It is a
+numbered checklist covering everything built so far — about 45 minutes — telling you what to
+click, what you should see, and what a failure would look like. It is written for somebody
+who does not read code.
+
+Three things worth trying immediately:
 
 - Sign in as `cliente@example.com` and type <http://localhost:3000/admin> into the address
   bar. You will be refused, not merely shown an empty menu.
 - Sign in as `monza@example.com` and note that Como does not exist as far as they are
   concerned — not hidden, genuinely unreachable, enforced by the database itself.
+- Sign in as `duecappelli@example.com` and use the location switcher. The same person is a
+  trainer at one company and a member at another, with one login.
 
-**Password reset does not send email yet.** No email service has been chosen (see OQ-7 in
-[docs/decisions.md](docs/decisions.md)). Until one is, the reset link is printed in the
-terminal window where `npm run dev` is running.
+### Breaking it on purpose
+
+```bash
+npm run db:reset-demo
+```
+
+Wipes every row of business data and rebuilds the demo world exactly as it started. Break
+anything you like, then run it. **It refuses to run against a database that is not local.**
+
+After a reset, **sign out and sign in again** — the reset replaces every person, so a browser
+that was already signed in is holding a pass belonging to somebody who no longer exists.
+
+**Password reset sends real email**, through Resend (OQ-7, resolved 2026-07-30). Without a
+`RESEND_API_KEY` in `.env` it falls back to printing the link in the terminal window where
+`npm run dev` is running, so nothing depends on an external service.
 
 ### Occasionally useful
 
 | Command | What it does |
 | --- | --- |
 | `npm run db:migrate` | Applies any pending database changes |
-| `npm run db:seed` | Recreates the demo accounts above |
+| `npm run db:seed` | Builds the demo world, leaving anything you added |
+| `npm run db:reset-demo` | **Wipes everything** and rebuilds the demo world from scratch |
 | `npm run db:studio` | Opens a visual browser for the database contents |
 | `npm run typecheck` | Checks the code for type mistakes without running it |
 | `npm run build` | Builds the production version |
+
+If a page ever says **404** just after new code arrives, delete the `.next` build cache and
+start the app again: `rm -rf .next`.
 
 ## Status
 

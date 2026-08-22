@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "node prisma/seed.ts",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:reset-demo": "node scripts/reset-demo.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

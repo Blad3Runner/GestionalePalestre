@@ -145,30 +145,56 @@ describe("the audit trail writes itself", () => {
   });
 
   it("never copies a password hash into the trail, where it would outlive the password", async () => {
-    const owner = await personId("titolare@example.com");
     const member = await personId("cliente@example.com");
 
-    const entry = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: owner },
-      async () => {
-        await client.query("UPDATE dim_person SET phone = '+39 000' WHERE id = $1", [
-          member,
-        ]);
-        const { rows } = await control.query(
-          `SELECT before, after FROM audit_log
-           WHERE table_name = 'dim_person' AND row_id = $1
-           ORDER BY changed_at DESC LIMIT 1`,
-          [member],
-        );
-        return rows[0];
-      },
+    // Committed on purpose, and undone at the end. The audit row has no company, so a
+    // company badge cannot read it, and reading it from inside a rolled-back
+    // transaction on another connection would see nothing at all — which is how an
+    // earlier version of this test came to pass on leftover rows from previous runs
+    // rather than on anything it had just done.
+    const before = await control.query(
+      "SELECT phone FROM dim_person WHERE id = $1",
+      [member],
     );
 
-    // Read through the privileged connection, so this is not merely hidden by a policy.
-    expect(entry).toBeDefined();
-    expect(Object.keys(entry.after)).not.toContain("password_hash");
-    expect(Object.keys(entry.before)).not.toContain("password_hash");
-    expect(JSON.stringify(entry)).not.toContain("$2b$");
+    try {
+      await control.query("UPDATE dim_person SET phone = '+39 000' WHERE id = $1", [
+        member,
+      ]);
+
+      const { rows } = await control.query(
+        `SELECT before, after FROM audit_log
+         WHERE table_name = 'dim_person' AND row_id = $1 AND action = 'UPDATE'
+         ORDER BY changed_at DESC LIMIT 1`,
+        [member],
+      );
+
+      expect(rows[0], "the update wrote no audit entry at all").toBeDefined();
+      expect(rows[0].after.phone).toBe("+39 000");
+      expect(Object.keys(rows[0].after)).not.toContain("password_hash");
+      expect(Object.keys(rows[0].before)).not.toContain("password_hash");
+      expect(JSON.stringify(rows[0])).not.toContain("$2b$");
+    } finally {
+      await control.query("UPDATE dim_person SET phone = $2 WHERE id = $1", [
+        member,
+        before.rows[0].phone,
+      ]);
+    }
+  });
+
+  it("strips the password hash from every entry it has ever written", async () => {
+    // The test above proves one update. This proves the rule held for all of them,
+    // including the inserts the seed made.
+    const { rows } = await control.query(
+      `SELECT count(*)::int AS leaked FROM audit_log
+       WHERE before ? 'password_hash' OR after ? 'password_hash'`,
+    );
+    const total = await control.query(
+      `SELECT count(*)::int AS n FROM audit_log WHERE table_name = 'dim_person'`,
+    );
+
+    expect(total.rows[0].n, "no person entries at all — nothing was checked").toBeGreaterThan(0);
+    expect(rows[0].leaked).toBe(0);
   });
 });
 
@@ -312,5 +338,88 @@ describe("person_role really has shrunk to platform admin", () => {
         [someone],
       ),
     ).rejects.toThrow(/person_role_is_platform_only|violates check constraint/i);
+  });
+});
+
+describe("the audit trail cannot be lost by accident later", () => {
+  /**
+   * Three tables are exempt, each for a stated reason. Everything else that holds
+   * business data must carry an audit trigger — including tables that do not exist yet.
+   *
+   * This is the test that keeps "audited from here onward" true. Step 5 adds services,
+   * prices and packs; Step 6 adds the ledger. If any of them arrives without a trigger,
+   * this fails immediately rather than being discovered a year later when somebody asks
+   * who changed a price.
+   */
+  const EXEMPT = new Set([
+    // The trail itself. Auditing the audit would recurse forever.
+    "audit_log",
+    // Reachable only through the auth functions; the application has no privileges on
+    // it at all, and it holds nothing but expiring hashes.
+    "password_reset_token",
+    // Prisma's own bookkeeping, not business data.
+    "_prisma_migrations",
+  ]);
+
+  it("has a trigger on every table that holds business data", async () => {
+    const { rows } = await control.query(`
+      SELECT t.tablename,
+             EXISTS (
+               SELECT 1 FROM pg_trigger g
+               JOIN pg_class c ON c.oid = g.tgrelid
+               WHERE c.relname = t.tablename
+                 AND NOT g.tgisinternal
+                 AND g.tgname LIKE 'audit_%'
+             ) AS audited
+      FROM pg_tables t
+      WHERE t.schemaname = 'public'
+      ORDER BY t.tablename
+    `);
+
+    const unaudited = rows
+      .filter((row) => !EXEMPT.has(row.tablename) && !row.audited)
+      .map((row) => row.tablename);
+
+    expect(
+      unaudited,
+      `these tables hold business data with no audit trail: ${unaudited.join(", ")}. ` +
+        "Add an `audit_<table>` trigger, or add the table to EXEMPT with the reason.",
+    ).toEqual([]);
+  });
+
+  it("is not passing vacuously against a database with no tables", async () => {
+    const { rows } = await control.query(
+      `SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = 'public'`,
+    );
+    expect(rows[0].n).toBeGreaterThanOrEqual(9);
+  });
+
+  it("still records a deletion, which is when a trail matters most", async () => {
+    const owner = await personId("titolare@example.com");
+
+    await control.query("BEGIN");
+    try {
+      const gym = await control.query(
+        `INSERT INTO dim_gym (id, company_id, name) VALUES (gen_random_uuid(), $1, 'Da cancellare')
+         RETURNING id`,
+        [SEREGNO],
+      );
+      await control.query(
+        `SELECT set_config('app.person_id', $1, true)`,
+        [owner],
+      );
+      await control.query("DELETE FROM dim_gym WHERE id = $1", [gym.rows[0].id]);
+
+      const { rows } = await control.query(
+        `SELECT action, before FROM audit_log
+         WHERE table_name = 'dim_gym' AND row_id = $1 AND action = 'DELETE'`,
+        [gym.rows[0].id],
+      );
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].before.name).toBe("Da cancellare");
+    } finally {
+      await control.query("ROLLBACK");
+    }
   });
 });

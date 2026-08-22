@@ -163,6 +163,7 @@ model Membership {
   defaultTrainerId String?       @map("default_trainer_id") @db.Uuid
 
   /// Trainer rows only. Deactivated rather than deleted, so past work stays theirs.
+  /// DERIVED BY THE DATABASE from `isActive` — the application cannot set it.
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(6)
 
   person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)

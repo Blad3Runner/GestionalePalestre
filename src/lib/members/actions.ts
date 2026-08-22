@@ -190,10 +190,10 @@ export async function setTrainerActiveAction(formData: FormData): Promise<void> 
 
     await tx.membership.update({
       where: { id: trainer.id },
-      data: {
-        isActive: activate,
-        deactivatedAt: activate ? null : new Date(),
-      },
+      // `deactivated_at` is deliberately NOT set here. A database trigger derives it
+      // from `is_active`, so the application cannot stamp it with its own clock — the
+      // rule that cost two hours of drift the first time it was broken.
+      data: { isActive: activate },
     });
 
     if (!activate) {

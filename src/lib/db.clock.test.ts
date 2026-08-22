@@ -59,10 +59,51 @@ describe("every timestamp column is filled by the database", () => {
     );
     expect(rows.map((row) => row.tgname).sort()).toEqual([
       "touch_company",
+      "touch_deactivated_at",
       "touch_gym",
       "touch_membership",
       "touch_person",
     ]);
+  });
+
+  it("derives the deactivation date, so the application cannot set it at all", async () => {
+    await db.query("BEGIN");
+    try {
+      const trainer = await db.query(
+        `SELECT id FROM bridge_membership WHERE role = 'TRAINER' AND is_active LIMIT 1`,
+      );
+      if (trainer.rows.length === 0) {
+        throw new Error("No demo data. Run `npm run db:seed` first.");
+      }
+
+      // A deliberately absurd date, of exactly the kind a confused application would
+      // send. The trigger must overwrite it rather than store it.
+      const lie = await db.query(
+        `UPDATE bridge_membership
+         SET is_active = false, deactivated_at = '1999-01-01T00:00:00Z'
+         WHERE id = $1
+         RETURNING deactivated_at, (SELECT now()) AS db_now`,
+        [trainer.rows[0].id],
+      );
+
+      const stored = lie.rows[0].deactivated_at.getTime();
+      const dbNow = lie.rows[0].db_now.getTime();
+
+      expect(
+        Math.abs(stored - dbNow),
+        "the application's date was stored instead of the database's",
+      ).toBeLessThan(TOLERANCE_MS);
+
+      // And switching them back on clears it, rather than leaving a stale date behind.
+      const back = await db.query(
+        `UPDATE bridge_membership SET is_active = true WHERE id = $1
+         RETURNING deactivated_at`,
+        [trainer.rows[0].id],
+      );
+      expect(back.rows[0].deactivated_at).toBeNull();
+    } finally {
+      await db.query("ROLLBACK");
+    }
   });
 });
 

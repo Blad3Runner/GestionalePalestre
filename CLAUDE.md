@@ -84,6 +84,47 @@ shared codebase and switched on only for that tenant, without modifying unrelate
 All business parameters (credit prices, price bands, discount percentages, time windows,
 thresholds) are tenant configuration.
 
+### The permanent rules of modularity
+
+**This modularity is the product's commercial edge. When a shortcut tempts you to violate
+these rules because it is faster, stop and propose the compliant design instead.**
+
+**M1 · One concept = one table, for all tenants.** A booking is a booking: any module that
+creates bookings writes `fact_booking`. Shared concepts are never duplicated per module —
+no `fact_booking_pt`, no `module_x_bookings`. This is what makes screens and reports work
+across all gyms regardless of which modules produced the data.
+
+**M2 · Module-private concepts live in the module's own side tables**, joined to the spine.
+The **spine** is: person · gym/company · membership · payment · booking. Credit batches,
+subscription periods and future things like drink orders are module-private and belong in
+side tables hanging off the spine.
+
+**M3 · Where new data lives — a test, applied case by case.**
+
+- **(a) A COLUMN on the shared table** when it is a natural attribute of that concept,
+  single-valued, and would make sense for any tenant even if only one uses it today —
+  *"a booking has an internal note"*.
+- **(b) A SIDE TABLE** when it is a cluster of fields with its own lifecycle, or
+  one-to-many (several rows per spine row), or special-category data —
+  *"a booking has drink orders"*.
+- **(c) TENANT CUSTOM FIELDS** (the existing configuration mechanism) for one-tenant quirks
+  that are pure attributes. This is the pressure valve that prevents both 300 tables and
+  300 columns.
+
+Structural changes to spine tables are proposed to the owner with the reasoning — one line
+(*"column, because natural attribute"* / *"side table, because own lifecycle"*) — then
+proceed on approval.
+
+**M4 · Modules interact only through the spine.** No module reads or writes another
+module's private tables.
+
+**M5 · Replacing a core section for one tenant means building an alternative module** (for
+example `booking-v2`) and switching that tenant to it. The default module and all other
+tenants are untouched. Never fork or special-case the existing module.
+
+**M6 · Activation is per-gym (or per-company) configuration.** A deactivated module is
+invisible: no screens, no menu entries, no data.
+
 ## Business models — both native
 
 Some tenants sell recurring memberships; others sell credits consumed via bookable
@@ -134,3 +175,46 @@ Present a plan in plain language before significant changes. Record decisions in
 /docs/features-credit-model.md (founding tenant), /docs/wireframes/ (UX, to come). Open
 business decisions are listed at the end of the features doc — when a task depends on one,
 ask, don't assume.
+
+### Every step closes with an owner acceptance script
+
+**A step is not done when the tests pass. It is done when the owner has been handed a
+written acceptance script and can work through it himself.** The script is delivered
+*before* the step is declared finished, and it contains four things.
+
+**1 · A numbered click-through**, written for somebody who does not read code. Exact
+actions — *"open `/desk`, sign in as `reception@example.com` / `Palestra2026!`, press
+'Nuovo membro', type a name and an email, press Save"* — each with **the expected result
+in plain words and what failure would look like**, so the owner can tell a working system
+from a broken one without asking. Name the demo accounts to use.
+
+**2 · The step's full "done when" table**, three columns: criterion · proven by (the name
+of an automated test, or "owner script item *n*") · status, Yes or No. **No row may rest
+on "trust me."** A criterion with an empty middle column is a criterion that is not met,
+and the step stays open.
+
+**3 · An invisible list** — what exists but has no screen yet, and is therefore proven
+only by automated tests. That is what the owner is *trusting* rather than *verifying*, and
+he is entitled to know exactly what is on it.
+
+**4 · Business behaviour, not mechanics.** Exercise the awkward cases: the person who is a
+trainer at one company and a member at another, a deactivated trainer whose history must
+survive, a late cancellation, deliberately wrong input. A script that only walks the happy
+path proves almost nothing.
+
+**Most checks are performed from the LIMITED accounts** — owner, front desk, trainer,
+member. The platform-admin account is for setup only. Walls and role-specific views are
+verified **from below**: the proof that a trainer cannot see another gym is a trainer
+trying and failing, not an administrator observing that they should not be able to.
+
+Scripts live in `docs/acceptance/`, one per step, and are kept working as later steps
+change the screens. A script that no longer matches the system is a defect.
+
+### The test sandbox
+
+The owner inspects the system **through the application, never through the database master
+key**. If a fact cannot be reached through a screen or an automated test, it is not
+verified — it is assumed. The demo world (`npm run db:seed`) carries a platform-admin
+account for the owner, two companies of deliberately different shape, and every role
+including a deactivated trainer; `npm run db:reset-demo` puts it all back to its starting
+state so the owner can break things freely. Keep both working as the system grows.

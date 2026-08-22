@@ -685,6 +685,10 @@ is marked with the step that needs it — and Step 3 genuinely needs this one.
 This is a sequencing consequence of the owner's own design rather than a new decision about
 the model. It is recorded here so it is visible and can be objected to.
 
+**APPROVED by the owner on 2026-08-22.** The split stands as built: Step 3 took only
+what the badge required, Step 4 grew the rest. No objection raised, and the table is now
+load-bearing for every screen in the system.
+
 ---
 
 ## 2026-07-30 — ⚠ The database owns the clock (a real bug, found and fixed)
@@ -733,6 +737,145 @@ answer is a per-company "contact detail" record rather than weakening the rule.
 
 ---
 
+## 2026-07-30 — The permanent rules of modularity
+
+**Decision:** six rules, now written into [CLAUDE.md](../CLAUDE.md) as hard rules.
+
+1. **One concept = one table, for all tenants.** A booking is a booking: any module that
+   creates bookings writes `fact_booking`. Shared concepts are never duplicated per module.
+2. **Module-private concepts** — credit batches, subscription periods, future things like
+   drink orders — **live in the module's own side tables**, joined to the spine:
+   person · gym/company · membership · payment · booking.
+3. **Where new data lives — a test, applied case by case.** (a) A **column** on the shared
+   table when it is a natural attribute of that concept, single-valued, and would make sense
+   for any tenant even if only one uses it today ("a booking has an internal note").
+   (b) A **side table** when it is a cluster of fields with its own lifecycle, or one-to-many,
+   or special-category data ("a booking has drink orders"). (c) **Tenant custom fields** —
+   the existing configuration mechanism — for one-tenant quirks that are pure attributes.
+   Structural changes to spine tables are proposed to the owner with the reasoning, one line,
+   then proceed on approval.
+4. **Modules interact only through the spine.** No module reads or writes another module's
+   private tables.
+5. **Replacing a core section for one tenant means building an alternative module**
+   (e.g. `booking-v2`) and switching that tenant to it. The default module and all other
+   tenants are untouched.
+6. **Activation is per-gym (or per-company) configuration.** A deactivated module is
+   invisible: no screens, no menu entries, no data.
+
+**Why:** owner's decision. This modularity is the product's commercial edge — the ability to
+sell a capability to one client and switch it on without touching anyone else, and to keep
+selling reports that work across every client whatever they have enabled. Rule 1 is what
+makes those reports possible: the moment a module invents its own booking table, every screen
+and every report has to learn about it, and the platform quietly becomes twenty platforms.
+Rule 3 exists because the two obvious failure modes are equal and opposite — a table per
+quirk, or a column per quirk — and the custom-field mechanism is the release valve for both.
+
+**Consequences:** when a shortcut is faster but breaks these rules, the compliant design is
+proposed instead — that is now binding, not advisory. Rule 3 also formalises how rule E3 of
+the anti-warehouse decision (2026-07-30) is applied: *whether* a new structure is justified
+is that decision; *what shape* it takes is this one. Rule 5 is the only sanctioned way to
+diverge for a single tenant, and it stays inside the "no per-client code versioning" rule
+because the alternative module lives in the same shared codebase and is available to
+everyone.
+
+---
+
+## 2026-08-22 — The test sandbox: the owner verifies through the app, never through the database
+
+**Decision:** the project keeps a permanent, resettable demo world, and the owner inspects
+the system through it using ordinary accounts. Four parts:
+
+1. **A platform-admin account for the owner** — `admin@example.com`. Full visibility
+   through the application. The database master key is never a way for the owner to check
+   something: if a fact cannot be reached through a screen or an automated test, it is not
+   verified, it is assumed.
+2. **Demo data with two companies of deliberately different shape** — one single-gym
+   credit-based studio (Studio Seregno, the founding tenant), one multi-gym
+   subscription-based circuit (Circuito Nord). Each carries an owner, a front desk, two
+   trainers of whom one is deactivated, and members spread across the lifecycle states,
+   plus the person who is a trainer at one company and a member at the other. Every
+   account and its password is listed at the top of the seed script.
+3. **Screens for creating a company, a gym and a person in any role**, so the owner can
+   build a new tenant by hand rather than by editing a script.
+4. **One command that resets the demo world** — `npm run db:reset-demo` — so the owner can
+   break anything freely and get back to a known state.
+
+**Why:** owner's decision, and it closes a gap this session exposed. Step 4 was declared
+done on the strength of 220 passing tests, but three of its five "done when" criteria had
+no test at all, and the owner had no way to check for himself — the only route to the data
+was the master key, which is exactly the account the tenant walls do not apply to. A
+sandbox the owner drives through the front door is the only honest way for a non-developer
+to confirm the system does what it claims.
+
+**Consequences:**
+
+- The demo world is part of the product's tooling, not a scratch file. It is maintained as
+  the system grows, and every step adds whatever fixtures its acceptance script needs.
+- `npm run db:reset-demo` deletes all domain data and re-seeds. It refuses to run against
+  anything but a local database, because the same command pointed at production would be a
+  catastrophe.
+- **The business model of each demo company (credits / subscriptions) is recorded as a
+  label in company settings, not as behaviour.** Neither module exists yet — credits arrive
+  in Step 6, subscriptions are deferred entirely. The label exists so the sandbox has the
+  two shapes the owner asked for and so the screens have something to display. **It is not
+  the module-activation mechanism**, which is still to be designed; when that arrives, this
+  label is replaced by it rather than grown into it.
+- Creating another platform admin is deliberately **not** a screen. The application has no
+  INSERT privilege on `person_role`, so it cannot mint a founder even if asked. Founders are
+  created by the seed, with the privileged account. This is on the invisible list on
+  purpose.
+
+---
+
+## 2026-08-22 — Every step closes with an owner acceptance script
+
+**Decision:** a step is not done when the tests pass. It is done when the owner has been
+handed a written acceptance script and can work through it himself. The script is delivered
+**before** the step is declared finished, and it contains four things:
+
+1. **A numbered click-through**, written for somebody who does not read code. Exact
+   actions — *"open /desk, sign in as `reception@example.com` / `Palestra2026!`, press
+   'Nuovo membro', type a name and an email, press Save"* — each with the expected result
+   in plain words **and what failure would look like**, so the owner can tell a working
+   system from a broken one without asking. The demo accounts to use are named in the step.
+2. **The step's full "done when" table**, three columns: criterion / proven by (the name of
+   an automated test, or "owner script item *n*") / status, Yes or No. **No row may rest on
+   "trust me."** A criterion with nothing in the middle column is a criterion that is not
+   met, and the step is not done.
+3. **An invisible list**: what exists but has no screen yet, and is therefore proven only by
+   automated tests. This is what the owner is *trusting* rather than *verifying*, and he is
+   entitled to know exactly what is on it.
+4. **Business behaviour, not mechanics.** The script exercises the awkward cases — the
+   person who is a trainer at one company and a member at another, a deactivated trainer
+   whose history must survive, a late cancellation, deliberately wrong input — because those
+   are where a system is actually wrong. A script that only walks the happy path proves
+   almost nothing.
+
+**Most checks are performed from the limited accounts** — owner, front desk, trainer,
+member. The platform-admin account is for setup only. Walls and role-specific views are
+verified **from below**: the proof that a trainer cannot see another gym is a trainer trying
+and failing, not an administrator observing that they should not be able to.
+
+**Why:** owner's decision. The project's rule has always been that every step ends with
+something the owner can see or try, but "here is what I built" was being delivered as prose
+rather than as a procedure, and prose cannot be failed. A numbered script with expected
+results is falsifiable: the owner either sees what it says or he does not. It also forces
+the honest question at the end of every step — *which of these criteria can I actually
+demonstrate?* — which is precisely the question that went unasked when Step 4 was declared
+done.
+
+**Consequences:**
+
+- Acceptance scripts live in `docs/acceptance/`, one per step, and are kept working as later
+  steps change the screens. A script that no longer matches the system is a defect.
+- Writing the script is part of the step, not an afterthought. If a criterion cannot be
+  demonstrated from a limited account, that is discovered while there is still time to build
+  the screen — or it goes on the invisible list with the reason stated.
+- The "done when" table is the step's contract. It is re-issued at the end of the step with
+  every row filled in, and a row at No means the step stays open.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
@@ -753,6 +896,19 @@ Dormant means "no consumption for N weeks / idle balance", and **N was never cho
 Churn is named in the state list but never defined at all. Not blocking: consumption does
 not exist until Step 6, so the rule cannot run yet, and Step 4 records these transitions
 by hand. Needs answering before the dormancy job is built.
+
+**OQ-9 · Which hat should somebody land on when they hold more than one?** Found on
+2026-08-22 while writing the acceptance script. `titolare@example.com` is both the owner of
+Studio Seregno and a trainer there. On signing in he lands on **whichever membership the
+database happens to return first** — in practice the trainer one, which means the owner of
+the business sees a trainer's menu and is refused his own front desk until he uses the
+location switcher.
+
+Nothing is insecure: both roles are genuinely his, and the switcher works. But the landing
+place is **arbitrary**, which is a poor thing for it to be. Three plausible answers: land on
+the **strongest** role held; land on the **most recently used** place, remembered per person;
+or **ask** on first sign-in. Needs deciding before real owners use the system daily — it is
+the first thing they will see every morning.
 
 *(OQ-7, the email provider, was answered on 2026-07-30: **Resend**. See the decision above.)*
 
