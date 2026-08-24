@@ -1,12 +1,58 @@
 # Owner acceptance script — Steps 1 to 4
 
-Written 2026-08-22. Covers everything built so far, in one sitting: roughly 45 minutes.
+Written 2026-08-22. Revised the same day after the owner's first run.
+Covers everything built so far, in one sitting: roughly 45 minutes.
 
 **This is a checklist you run, not a report you read.** Every item tells you exactly what
 to do, what you should see, and **what it would look like if it were broken**. If any item
 does not behave as written, the step it belongs to is not done — say so and it gets fixed.
 
 You do not need to understand any code. You need a browser and a terminal.
+
+---
+
+## First: how the system is organised
+
+Two words are used constantly and mean different things. Everything else follows from them.
+
+**A COMPANY is the tenant.** It is the *business* — the thing that has an owner, sells
+something, and has walls around it. One company can never see another company's anything.
+This is the unit that gets billed, and the unit the law cares about.
+
+**A GYM is one physical location**, belonging to **exactly one** company. A gym is a room
+with a door, not a business.
+
+A company may own **one** gym or **several**. When it owns several, people sometimes call
+it a *circuito* — a circuit or chain — but there is no separate thing called a circuit in
+the system. It is just a company with more than one gym.
+
+```
+COMPANY  ──owns──▶  GYM
+   │                 │
+   │                 └─ people work or train HERE
+   └─ the wall is HERE
+```
+
+**Roles hang off the pair, not off the person.** Somebody is "a trainer at Milano" or "the
+owner of the whole of Circuito Nord" — never just "a trainer". The same human being can be
+a trainer at one company and a member at another, with one login. That is the case you will
+check in Part D.
+
+Two levels a role can sit at:
+
+- **Whole company** — covers every gym the company owns, including ones opened later.
+- **One gym** — covers that location only, and its sibling locations are invisible.
+
+### The two demo companies
+
+Deliberately different shapes, so both cases can be checked. **A company name never contains
+a city; a gym name is only ever a city.** That way you can always tell which is which.
+
+| | Studio Corpo Libero | Circuito Nord |
+| --- | --- | --- |
+| **Gyms** | **1** — Milano | **2** — Bologna, Torino |
+| **Sells** | Credits | Subscriptions |
+| **Notes** | The founding tenant, the studio this platform was designed around | A chain, so sibling-gym walls can be tested |
 
 ---
 
@@ -35,27 +81,46 @@ Then open <http://localhost:3000> in a browser.
 The application is in **Italian** by default. There is an **EN** button in the top bar if
 you prefer English; the script below quotes the Italian labels.
 
-### The accounts
+### Every account
 
-Every account uses the same password: **`Palestra2026!`**
+All eighteen, with the same password: **`Palestra2026!`**
 
 | Sign in as | Who they are | Where |
 | --- | --- | --- |
 | `admin@example.com` | **Platform admin — your account** | Everywhere |
-| `titolare@example.com` | Owner **and** trainer | Studio Seregno |
-| `reception@example.com` | Front desk | Seregno |
-| `trainer@example.com` | Trainer, active (app in English) | Seregno |
-| `senior@example.com` | Trainer, **deactivated** | Seregno |
-| `cliente@example.com` | Member — Client | Seregno |
-| `cliente2@example.com` | Member — Lead | Seregno |
-| `nord@example.com` | Owner of the **whole** circuit | Circuito Nord |
-| `monza@example.com` | Owner of **Monza only** | Circuito Nord |
-| `duecappelli@example.com` | **Trainer at Seregno *and* member at Nord** | Both |
+| **— Studio Corpo Libero —** | | |
+| `titolare@example.com` | Owner **and** trainer | Whole company |
+| `reception@example.com` | Front desk | Milano |
+| `trainer@example.com` | Trainer, active *(app in English)* | Milano |
+| `senior@example.com` | Trainer, **deactivated** | Milano |
+| `cliente@example.com` | Member — **Cliente** (Client) | Milano |
+| `cliente2@example.com` | Member — **Contatto** (Lead) | Milano |
+| `starter@example.com` | Member — **Starter** | Milano |
+| `dormiente@example.com` | Member — **Inattivo** (Dormant) | Milano |
+| `perso@example.com` | Member — **Perso** (Churned) | Milano |
+| **— Circuito Nord —** | | |
+| `nord@example.com` | Owner of the **whole** company | Bologna **and** Torino |
+| `bologna@example.com` | Owner of **Bologna only** | Bologna |
+| `reception.bologna@example.com` | Front desk | Bologna |
+| `trainer.bologna@example.com` | Trainer, active | Bologna |
+| `trainer.torino@example.com` | Trainer, **deactivated** | Torino |
+| `bologna.lead@example.com` | Member — **Contatto** (Lead) | Bologna |
+| `torino.cliente@example.com` | Member — **Cliente** (Client) | Torino |
+| **— The awkward one —** | | |
+| `duecappelli@example.com` | **Trainer at Corpo Libero *and* member at Nord** | Both |
 
-Two companies, on purpose shaped differently:
+### A note on the five member states
 
-- **Studio Seregno** — one gym, sells credits. The founding tenant.
-- **Circuito Nord** — two gyms (Monza, Como), sells subscriptions.
+The system shows Italian words; this script and the plan use English ones. They are the
+same five things:
+
+| Italian on screen | English in the plan | Means |
+| --- | --- | --- |
+| **Contatto** | Lead | Enquired, not bought anything |
+| **Starter** | Starter | Bought the entry pack |
+| **Cliente** | Client | Buys credits regularly |
+| **Inattivo** | Dormant | Has stopped coming |
+| **Perso** | Churned | Gone |
 
 ---
 
@@ -76,7 +141,7 @@ naming the PostgreSQL version (something like "PostgreSQL 18").
 **A3 · Run the automated tests.**
 In a second terminal: `npm test`.
 **Expect:** the last two lines read `Test Files 12 passed (12)` and
-`Tests 259 passed (259)`. It takes a few seconds.
+`Tests 261 passed (261)`. It takes a few seconds.
 **Broken would look like:** any line containing `FAIL`, or a number under "failed" that is
 not zero.
 
@@ -105,8 +170,9 @@ technical error. **Seeing the page would be a serious failure — that is the wh
 
 **B3 · Try a wrong password.**
 Sign out ("Esci"), then try `reception@example.com` with the password `sbagliata`.
-**Expect:** a refusal that does **not** say whether the email exists. It must not say "no
-such user" — that would tell a stranger which addresses are real.
+**Expect:** "Email o password non corretti." — a refusal that does **not** say whether the
+email exists. It must not say "no such user"; that would tell a stranger which addresses
+are real.
 **Broken would look like:** being let in, or a message naming the account.
 
 **B4 · Confirm the language switch works.**
@@ -118,24 +184,38 @@ Sign in as `trainer@example.com` (this one is set to English).
 
 ## Part C — The walls between companies *(Step 3)*
 
-**C1 · A gym owner who owns only one location.**
-Sign out, sign in as `monza@example.com` — the owner of **Monza only**, in a circuit that
-also owns Como.
+**C1 · An owner who owns only one location.**
+Sign out, sign in as `bologna@example.com` — the owner of **Bologna only**, in a company
+that also owns Torino.
 Open <http://localhost:3000/desk/members>.
-**Expect:** a list headed "— Monza" containing exactly **two** people: Elena Due Cappelli
-and Nadir Lead. **Carlo Como must not appear anywhere.** There should be no location
-switcher in the top bar, because this person belongs to only one place.
-**Broken would look like:** any member from Como appearing, or a switcher offering Como.
+**Expect:** the line under the heading reads exactly **"Le persone iscritte a Bologna."**
+Below it, exactly **two** people: Elena Due Cappelli and Nadir Lead, both showing "Bologna"
+in the Sede column. **The word "Torino" must not appear anywhere on the page**, and Carlo
+Torino must not be listed. There is no location switcher in the top bar, because this
+person belongs to one place only.
+**Broken would look like:** anybody from Torino appearing, the word Torino showing up at
+all, or a switcher offering it.
 
-**C2 · The owner of the whole circuit sees both.**
+**C2 · The owner of the whole company sees every location at once.**
 Sign out, sign in as `nord@example.com`.
-**Expect:** a "Cambia sede" (change location) switcher in the top bar offering **both**
-Monza and Como. Switch between them and the member list changes accordingly.
-**Broken would look like:** only one location offered, or the list not changing when you
-switch.
+Open <http://localhost:3000/desk/members>.
+**Expect:** the line under the heading reads **"Le persone iscritte in tutte le sedi di
+Circuito Nord."** Below it, **three** people — Elena Due Cappelli (Bologna), Carlo Torino
+(**Torino**), Nadir Lead (Bologna) — with the **Sede** column telling you which gym each
+belongs to.
+**Expect also:** there is **no "Cambia sede" switcher** for this person. That is correct and
+not a fault. They hold one role covering the whole company, so there is only one thing to
+look at: everything they own. Only somebody who belongs to *more than one* place gets a
+switcher.
+**Broken would look like:** seeing only one gym's members, or the Sede column being empty
+so you cannot tell the locations apart.
+
+> Being unable to narrow down to just Bologna for the day is a known limitation, recorded
+> as open question **OQ-10**. It matters more once there are calendars and takings to look
+> at per location.
 
 **C3 · A member cannot see other members.**
-Sign out, sign in as `cliente@example.com` (a member at Seregno).
+Sign out, sign in as `cliente@example.com` (a member at Milano).
 Type `http://localhost:3000/desk/members` directly into the browser bar.
 **Expect:** "Accesso non consentito" — allowed roles "Titolare, Reception", your roles
 "Cliente".
@@ -146,25 +226,27 @@ Type `http://localhost:3000/desk/members` directly into the browser bar.
 ## Part D — The awkward one: a person with two hats *(Step 4)*
 
 This is the case most systems get wrong, so check it carefully. Elena is a **trainer** at
-Studio Seregno and a **member** at Circuito Nord. **One human being, one login.**
+Studio Corpo Libero and a **member** at Circuito Nord. **One human being, one login.**
 
 **D1 · Sign in as Elena.**
 Sign out, sign in as `duecappelli@example.com`.
-**Expect:** the top bar shows a "Cambia sede" switcher offering **two different companies**:
-"Studio Seregno — Seregno" and "Circuito Nord — Monza". The menu shows **"Area trainer"**.
-**Broken would look like:** only one company offered, or two separate accounts being needed.
+**Expect:** the top bar shows a small label reading **"Cambia sede"** followed by a dropdown
+offering **two different companies**: "Studio Corpo Libero — Milano" and "Circuito Nord —
+Bologna", with a "Vai" button beside it. The menu shows **"Area trainer"**.
+**Broken would look like:** only one company offered, no label beside the dropdown, or two
+separate accounts being needed.
 
 **D2 · As a trainer, she is not a member.**
-While looking at **Studio Seregno**, type `http://localhost:3000/me` into the browser bar —
-that is the members' own area.
+While looking at **Studio Corpo Libero — Milano**, type `http://localhost:3000/me` into the
+browser bar — that is the members' own area.
 **Expect:** "Accesso non consentito" — allowed roles "Cliente", your roles "**Trainer**".
 **Broken would look like:** the member area opening. Elena is staff there, not a customer.
 
 **D3 · Switch company, and she becomes a member.**
-Use the switcher to choose "Circuito Nord — Monza", press "Vai", then open
+Use the switcher to choose "Circuito Nord — Bologna", press "Vai", then open
 `http://localhost:3000/me` again.
 **Expect:** the page now **opens**, headed "Area personale", and states "I tuoi ruoli:
-**Cliente**", "Stai vedendo: Circuito Nord — Monza". The menu entry has changed from "Area
+**Cliente**", "Stai vedendo: Circuito Nord — Bologna". The menu entry has changed from "Area
 trainer" to "Area personale".
 **Broken would look like:** still refused, or still showing "Trainer" — that would mean the
 system thinks a role is a property of the person rather than of where they are.
@@ -180,15 +262,17 @@ Still looking at Circuito Nord, open `http://localhost:3000/trainer`.
 
 **E1 · The front desk sees its own gym, and only that.**
 Sign out, sign in as `reception@example.com`. Open <http://localhost:3000/desk/members>.
-**Expect:** five members, all at Seregno, each showing a state: Perso, Inattivo, Starter,
-Contatto, Cliente. No member of Circuito Nord appears.
+**Expect:** the line under the heading reads **"Le persone iscritte a Milano."** and five
+members are listed, each showing a state: Perso, Inattivo, Starter, Contatto, Cliente. No
+member of Circuito Nord appears.
 **Broken would look like:** members from another company, or every state showing "—".
 
 **E2 · Add a new member.**
 Scroll to "Nuovo cliente". Type a name (`Mario Prova`) and an email
 (`mario.prova@example.com`). Press "Aggiungi cliente".
-**Expect:** the list refreshes and Mario appears with the state **"Contatto"** (Lead). A
-note below the form explains he has no password yet and will set his own.
+**Expect:** the list refreshes and Mario appears with the state **"Contatto"** — that is
+Lead, the first of the five states. A note below the form explains he has no password yet
+and will set his own.
 **Broken would look like:** an error, or Mario appearing with no state, or with a state
 other than Contatto.
 
@@ -204,24 +288,36 @@ Add a member with an empty name and any email.
 **Broken would look like:** a half-made person appearing in the list with a blank name.
 
 **E5 · Open a member's file.**
-Press "Apri scheda" next to **Paolo Cliente** (`cliente2@example.com`, state Contatto).
+Press "Apri scheda" next to **Paolo Cliente** (`cliente2@example.com`). His state is
+**Contatto** — Lead.
 **Expect:** his file, showing email, state "Contatto", his usual trainer ("Luca Trainer"),
 the date he joined, and a section "Storico degli stati" with one line: "Contatto", dated,
 noted "Seeded".
 **Broken would look like:** a "not found" page, or an empty history.
 
-**E6 · Move him from Lead to Starter.**
+**E6 · Move him from Contatto to Starter.**
 In "Cambia stato", open the "Nuovo stato" dropdown.
-**Expect first:** the dropdown offers only **"Starter"** and **"Perso"**. It must **not**
-offer "Cliente" — going straight from a first contact to a paying client would skip the
-Starter Pack, and the system refuses to record a step that never happened.
+
+**Expect first:** the dropdown offers only **"Starter"** and **"Perso"** — and **not**
+"Contatto", the state he is already in, nor "Cliente".
+
+> **This trips people up, so read it once.** The dropdown lists **where he can go**, never
+> **where he is**. His current state is shown separately, higher up the page, next to
+> "Stato". Two things are therefore missing from the list on purpose: *Contatto*, because
+> he is already there and moving somewhere you already are means nothing; and *Cliente*,
+> because going straight from a first contact to a paying client would skip the Starter
+> Pack, and the system refuses to record a step that never happened. Making this clearer on
+> screen is a design job for later — the behaviour is right, the presentation is thin.
+
 Choose "Starter", type the note `Ha comprato lo Starter Pack`, press "Salva".
 **Expect:** the state at the top becomes "Starter", and the history gains a line reading
 **"Contatto → Starter"**, with today's date and time, and **"Registrato da Sara
 Reception"**, with your note beneath it. The old "Contatto" line is still there below it.
+**Expect also:** the dropdown now offers **Cliente, Contatto, Perso** — the three places a
+Starter can go — and no longer offers Starter. Same rule as before.
 **Broken would look like:** the history being overwritten instead of added to, the wrong
-person's name recorded, a time that is not the current time, or "Cliente" being offered in
-the dropdown.
+person's name recorded, a time that is not the current time, or "Cliente" having been
+offered before the move.
 
 **E7 · What the front desk is not allowed to see.**
 Still on Paolo's file, look at the section "Registro delle modifiche" (the change log).
@@ -239,8 +335,9 @@ Sign out, sign in as `titolare@example.com`. He is **both** the owner and a trai
 
 > **Known rough edge.** He may land on his *trainer* hat, in which case the menu shows only
 > "Area trainer" and `/desk` is refused. Use the "Cambia sede" switcher to choose **"Studio
-> Seregno (tutta la struttura)"** — the whole company — and press "Vai". You are then acting
-> as the owner. This is recorded as an open question: which hat should he land on by default?
+> Corpo Libero (tutta la struttura)"** — the whole company — and press "Vai". You are then
+> acting as the owner. This is recorded as open question **OQ-9**: which hat should he land
+> on by default?
 
 **F2 · See the trainers, including the one who left.**
 Open <http://localhost:3000/owner/trainers>.
@@ -286,9 +383,22 @@ matters was checked above from limited accounts.
 Sign out, sign in as `admin@example.com`. Open <http://localhost:3000/admin>.
 **Expect:** an overview listing **both** companies with their sales model, number of
 locations and number of people — "Circuito Nord · SUBSCRIPTIONS · 2 sedi · 8 persone",
-"Studio Seregno · CREDITS · 1 sedi · 11 persone" — plus three links: new company, new
+"Studio Corpo Libero · CREDITS · 1 sedi · 11 persone" — plus three links: new company, new
 location, new person. **This is the only screen in the product that sees across companies.**
-**Broken would look like:** only one company appearing, or the counts being obviously wrong.
+**Expect also:** the "Cambia sede" dropdown in the top bar offers **four** entries:
+
+| Entry | Why it is there |
+| --- | --- |
+| Circuito Nord (tutta la struttura) | The whole company — both its gyms at once |
+| Circuito Nord — Bologna | Just that location |
+| Circuito Nord — Torino | Just that location |
+| Studio Corpo Libero — Milano | Its only location |
+
+Studio Corpo Libero gets **one** entry, not two, because a company with a single gym would
+otherwise appear twice saying the same thing. A company only offers a "tutta la struttura"
+entry when it has more than one gym to stand above.
+**Broken would look like:** only one company appearing, the counts being obviously wrong, or
+the same company listed twice with one gym.
 
 **G2 · Create a company.**
 Follow "Nuova azienda". Type the name `Palestra Prova`, leave the VAT number blank, choose a
@@ -302,9 +412,10 @@ Create `Palestra Prova` again.
 **Expect:** "Esiste già un'azienda con questo nome." and no duplicate.
 
 **G4 · Create a location for it.**
-Follow "Nuova sede". Choose "Palestra Prova", name it `Sede Centro`, city `Milano`, press
+Follow "Nuova sede". Choose "Palestra Prova", name it `Firenze`, city `Firenze`, press
 "Crea".
-**Expect:** the table lists "Sede Centro — Milano — Palestra Prova".
+**Expect:** the table lists "Firenze — Firenze — Palestra Prova".
+**Broken would look like:** the location appearing under the wrong company.
 
 **G5 · Create a person in a role you choose.**
 Follow "Nuova persona". Name `Prova Titolare`, email `prova.titolare@example.com`, role
@@ -315,10 +426,22 @@ Cliente. **"Amministratore piattaforma" is deliberately not on the list**, and a
 the form says so. The application has no permission to create founders, by design.
 **Broken would look like:** platform admin being offered.
 
+> **You cannot sign in as this person, and that is on purpose.** Nobody — not even you —
+> ever sets somebody else's password. A person created here has none at all; they set their
+> own through "Password dimenticata" on the sign-in page, exactly as a member added at the
+> desk does.
+>
+> **In the sandbox this is awkward, and you should know why.** Every demo address ends in
+> `@example.com`, and the email service refuses to send to those addresses at all. So the
+> reset link never arrives in an inbox — instead it is **printed in the terminal window
+> where `npm run dev` is running**. Scroll up there, find the block headed `EMAIL NOT SENT`,
+> copy the link out of it, and paste it into the browser. That works, but it is clumsy, and
+> it is recorded as open question **OQ-11**.
+
 **G6 · Find Elena in the list, and see the two hats in one row.**
 Scroll the people list to "Elena Due Cappelli".
-**Expect:** her single row shows **both** places: "Trainer — Studio Seregno / Seregno" and
-"Cliente — Circuito Nord / Monza · Cliente".
+**Expect:** her single row shows **both** places: "Trainer — Studio Corpo Libero / Milano"
+and "Cliente — Circuito Nord / Bologna · Cliente".
 **Broken would look like:** two separate rows for Elena — that would mean two accounts for
 one human being.
 
@@ -361,7 +484,7 @@ Each step's contract, and where each line is proven. **No row rests on "trust me
 | (c) A client cannot read another client's rows in the same gym | `wall.test.ts › (c) a client badge and other clients` (5 cases) · Owner script **C3** | Yes |
 | (d) With **no badge at all**, tenant tables return nothing | `wall.test.ts › (d) no badge at all` (6 cases) | Yes |
 | (e) The application's connection is provably **not** a superuser | `wall.test.ts › (e) the account the application actually uses` (3 cases) | Yes |
-| The company is the tenant; a company may own several gyms | Owner script **C2, G1** · `demo-world.test.ts › the two companies have deliberately different shapes` | Yes |
+| The company is the tenant; a company may own several gyms | Owner script **C1, C2, G1** · `demo-world.test.ts › the two companies have deliberately different shapes` | Yes |
 
 ### Step 4 — People, roles and lifecycle
 
@@ -384,6 +507,7 @@ Each step's contract, and where each line is proven. **No row rests on "trust me
 | Trainer pay is **financial data** — invisible to workers and clients | `audit.test.ts › what a trainer is paid is financial data` (4 cases) · Owner script **E7 / F5** | Yes |
 | All three pay models exist and are dated | `demo-world.test.ts › how trainers are paid` (4 cases) | Yes |
 | Every timestamp comes from the database's clock | `db.clock.test.ts` (5 cases) · `actions.test.ts › dates the deactivation by the database's clock` | Yes |
+| Company and gym names can never be confused for each other | `demo-world.test.ts › the names cannot be confused with each other` (2 cases) · Owner script **C1, C2, G1** | Yes |
 
 ---
 
@@ -399,6 +523,8 @@ list.
 | **The full audit log** across a company | Only the last 25 entries for one member appear on their file | `audit.test.ts` (16 cases) |
 | **Creating another platform admin** | **Deliberate.** The application has no permission to create founders. Done by the seed only | `wall.test.ts › (c) cannot read anybody's platform roles but its own` |
 | **Adding an existing person to a second company** | Elena's two hats exist through the seed. Doing it by hand has no screen yet | `demo-world.test.ts › the person with two hats` |
+| **Setting somebody's first password** | Deliberate — nobody sets another person's password. Today the reset link only reaches the terminal for demo addresses (**OQ-11**) | Owner script **G5** |
+| **Narrowing a whole-company owner to one gym** | Not built; they see every location at once (**OQ-10**) | Owner script **C2** |
 | **Editing a company or a gym** after creating it | Only creation was in scope | — |
 | **Editing a member's level, package cap or usual trainer** after creation | Set at creation; changing them afterwards has no screen | — |
 | **Company and gym settings** (price and opening-hours overrides) | The store exists; a settings screen was explicitly excluded from Step 3 | — |

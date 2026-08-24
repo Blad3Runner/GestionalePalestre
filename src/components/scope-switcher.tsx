@@ -21,24 +21,47 @@ async function platformChoices(viewer: Viewer): Promise<Scope[]> {
       orderBy: { name: "asc" },
     });
 
-    return companies.flatMap((company) => [
-      {
-        companyId: company.id,
-        companyName: company.name,
-        gymId: null,
-        gymName: null,
-        role: "PLATFORM_ADMIN",
-        level: "PLATFORM" as const,
-      },
-      ...company.gyms.map((gym) => ({
+    return companies.flatMap((company) => {
+      const gyms = company.gyms.map((gym) => ({
         companyId: company.id,
         companyName: company.name,
         gymId: gym.id,
         gymName: gym.name,
         role: "PLATFORM_ADMIN",
         level: "PLATFORM" as const,
-      })),
-    ]);
+      }));
+
+      // A company with one gym would otherwise appear twice — "the whole company"
+      // and "its only gym" being the same thing — which reads as a bug rather than
+      // as precision. The circuit-wide entry is offered only when there is genuinely
+      // a circuit to stand above.
+      if (gyms.length < 2) {
+        return gyms.length === 1
+          ? gyms
+          : [
+              {
+                companyId: company.id,
+                companyName: company.name,
+                gymId: null,
+                gymName: null,
+                role: "PLATFORM_ADMIN",
+                level: "PLATFORM" as const,
+              },
+            ];
+      }
+
+      return [
+        {
+          companyId: company.id,
+          companyName: company.name,
+          gymId: null,
+          gymName: null,
+          role: "PLATFORM_ADMIN",
+          level: "PLATFORM" as const,
+        },
+        ...gyms,
+      ];
+    });
   });
 }
 
@@ -60,7 +83,7 @@ export async function ScopeSwitcher({ viewer, t }: { viewer: Viewer; t: Dictiona
 
   return (
     <form action={setScopeAction} className="inline">
-      <label htmlFor="scope" className="visually-hidden">
+      <label htmlFor="scope" className="scope-label">
         {t.nav.switchScope}
       </label>
       <select

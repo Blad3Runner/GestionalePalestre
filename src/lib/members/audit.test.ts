@@ -12,8 +12,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * Needs the demo data: run `npm run db:seed` first.
  */
 
-const SEREGNO = "11111111-1111-1111-1111-111111111111";
-const SEREGNO_GYM = "aaaaaaaa-0000-0000-0000-000000000001";
+const CORPO_LIBERO = "11111111-1111-1111-1111-111111111111";
+const MILANO = "aaaaaaaa-0000-0000-0000-000000000001";
 
 let client: pg.Client;
 let control: pg.Client;
@@ -71,13 +71,13 @@ describe("the audit trail writes itself", () => {
     const owner = await personId("titolare@example.com");
 
     const entry = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: owner },
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: owner },
       async () => {
         // A perfectly ordinary update. Nothing here mentions the audit log.
         await client.query(
           `UPDATE bridge_membership SET level = 'Avanzato'
            WHERE role = 'MEMBER' AND company_id = $1`,
-          [SEREGNO],
+          [CORPO_LIBERO],
         );
 
         const { rows } = await client.query(
@@ -100,12 +100,12 @@ describe("the audit trail writes itself", () => {
     const owner = await personId("titolare@example.com");
 
     const changedBy = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: owner },
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: owner },
       async () => {
         await client.query(
           `UPDATE bridge_membership SET level = 'Base'
            WHERE role = 'MEMBER' AND company_id = $1`,
-          [SEREGNO],
+          [CORPO_LIBERO],
         );
         const { rows } = await client.query(
           `SELECT changed_by_id FROM audit_log
@@ -124,12 +124,12 @@ describe("the audit trail writes itself", () => {
     const owner = await personId("titolare@example.com");
 
     const entry = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: owner },
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: owner },
       async () => {
         await client.query(
           `UPDATE bridge_membership SET lifecycle_state = 'DORMANT'
            WHERE role = 'MEMBER' AND company_id = $1 AND lifecycle_state = 'CLIENT'`,
-          [SEREGNO],
+          [CORPO_LIBERO],
         );
         const { rows } = await client.query(
           `SELECT before, after FROM audit_log
@@ -203,7 +203,7 @@ describe("the application cannot tamper with the trail", () => {
     const owner = await personId("titolare@example.com");
 
     await expect(
-      asBadge({ level: "COMPANY", companyId: SEREGNO, personId: owner }, () =>
+      asBadge({ level: "COMPANY", companyId: CORPO_LIBERO, personId: owner }, () =>
         client.query(
           `INSERT INTO audit_log (table_name, action) VALUES ('forged', 'INSERT')`,
         ),
@@ -215,7 +215,7 @@ describe("the application cannot tamper with the trail", () => {
     const owner = await personId("titolare@example.com");
 
     await expect(
-      asBadge({ level: "COMPANY", companyId: SEREGNO, personId: owner }, () =>
+      asBadge({ level: "COMPANY", companyId: CORPO_LIBERO, personId: owner }, () =>
         client.query("DELETE FROM audit_log"),
       ),
     ).rejects.toThrow(/permission denied/i);
@@ -225,7 +225,7 @@ describe("the application cannot tamper with the trail", () => {
     const owner = await personId("titolare@example.com");
 
     await expect(
-      asBadge({ level: "COMPANY", companyId: SEREGNO, personId: owner }, () =>
+      asBadge({ level: "COMPANY", companyId: CORPO_LIBERO, personId: owner }, () =>
         // Must fit the column, or the length check fires first and this would pass
         // without ever reaching the permission check.
         client.query("UPDATE audit_log SET action = 'FORGED'"),
@@ -238,7 +238,7 @@ describe("what a trainer is paid is financial data", () => {
   it("exists, so the tests below are not passing against nothing", async () => {
     const { rows } = await control.query(
       "SELECT id FROM dim_trainer_compensation WHERE company_id = $1",
-      [SEREGNO],
+      [CORPO_LIBERO],
     );
     expect(rows.length).toBeGreaterThan(0);
   });
@@ -246,7 +246,7 @@ describe("what a trainer is paid is financial data", () => {
   it("is visible to the owner of the company", async () => {
     const owner = await personId("titolare@example.com");
     const found = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: owner },
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: owner },
       async () =>
         (await client.query("SELECT * FROM dim_trainer_compensation")).rows.length,
     );
@@ -258,8 +258,8 @@ describe("what a trainer is paid is financial data", () => {
     const found = await asBadge(
       {
         level: "WORKER",
-        companyId: SEREGNO,
-        gymId: SEREGNO_GYM,
+        companyId: CORPO_LIBERO,
+        gymId: MILANO,
         personId: trainer,
       },
       async () =>
@@ -271,7 +271,7 @@ describe("what a trainer is paid is financial data", () => {
   it("is invisible to a client", async () => {
     const member = await personId("cliente@example.com");
     const found = await asBadge(
-      { level: "CLIENT", companyId: SEREGNO, gymId: SEREGNO_GYM, personId: member },
+      { level: "CLIENT", companyId: CORPO_LIBERO, gymId: MILANO, personId: member },
       async () =>
         (await client.query("SELECT * FROM dim_trainer_compensation")).rows.length,
     );
@@ -283,7 +283,7 @@ describe("a member's own history", () => {
   it("is visible to them", async () => {
     const member = await personId("cliente@example.com");
     const found = await asBadge(
-      { level: "CLIENT", companyId: SEREGNO, gymId: SEREGNO_GYM, personId: member },
+      { level: "CLIENT", companyId: CORPO_LIBERO, gymId: MILANO, personId: member },
       async () =>
         (await client.query("SELECT * FROM fact_lifecycle_event")).rows.length,
     );
@@ -299,7 +299,7 @@ describe("a member's own history", () => {
     );
 
     const found = await asBadge(
-      { level: "CLIENT", companyId: SEREGNO, gymId: SEREGNO_GYM, personId: member },
+      { level: "CLIENT", companyId: CORPO_LIBERO, gymId: MILANO, personId: member },
       async () =>
         (
           await client.query(
@@ -314,7 +314,7 @@ describe("a member's own history", () => {
   it("is visible to the front desk of their gym, which is what a desk is for", async () => {
     const staff = await personId("reception@example.com");
     const found = await asBadge(
-      { level: "WORKER", companyId: SEREGNO, gymId: SEREGNO_GYM, personId: staff },
+      { level: "WORKER", companyId: CORPO_LIBERO, gymId: MILANO, personId: staff },
       async () =>
         (await client.query("SELECT * FROM fact_lifecycle_event")).rows.length,
     );
@@ -402,7 +402,7 @@ describe("the audit trail cannot be lost by accident later", () => {
       const gym = await control.query(
         `INSERT INTO dim_gym (id, company_id, name) VALUES (gen_random_uuid(), $1, 'Da cancellare')
          RETURNING id`,
-        [SEREGNO],
+        [CORPO_LIBERO],
       );
       await control.query(
         `SELECT set_config('app.person_id', $1, true)`,

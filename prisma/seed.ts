@@ -12,34 +12,46 @@ import { PrismaClient } from "../src/generated/prisma/client.ts";
  *
  *     Palestra2026!
  *
+ * THE STRUCTURE
  * ---------------------------------------------------------------------------
- * SIGN IN AS                        WHAT THEY ARE           WHERE
+ * A COMPANY is the tenant — the business, the thing with the walls around it.
+ * A GYM is one physical location belonging to exactly one company.
+ * A company may own one gym or several. Company names never contain a city;
+ * gym names are ONLY cities, so the two can never be confused.
+ *
+ *   Studio Corpo Libero    ONE gym:  Milano                    sells CREDITS
+ *                          (the founding tenant)
+ *
+ *   Circuito Nord          TWO gyms: Bologna, Torino           sells SUBSCRIPTIONS
+ *
  * ---------------------------------------------------------------------------
- * admin@example.com                 PLATFORM ADMIN          everywhere
+ * SIGN IN AS                      WHAT THEY ARE            WHERE
+ * ---------------------------------------------------------------------------
+ * admin@example.com               PLATFORM ADMIN           everywhere
  *
- * -- Studio Seregno · ONE gym · sells CREDITS · the founding tenant ----------
- * titolare@example.com              owner AND trainer       whole company
- * reception@example.com             front desk              Seregno
- * trainer@example.com               trainer   (ACTIVE)      Seregno
- * senior@example.com                trainer   (DEACTIVATED) Seregno
- * cliente@example.com               member — Client         Seregno
- * cliente2@example.com              member — Lead           Seregno
- * starter@example.com               member — Starter        Seregno
- * dormiente@example.com             member — Dormant        Seregno
- * perso@example.com                 member — Churn          Seregno
+ * -- Studio Corpo Libero --------------------------------------------------
+ * titolare@example.com            owner AND trainer        whole company
+ * reception@example.com           front desk               Milano
+ * trainer@example.com             trainer   (ACTIVE)       Milano
+ * senior@example.com              trainer   (DEACTIVATED)  Milano
+ * cliente@example.com             member - Client          Milano
+ * cliente2@example.com            member - Lead            Milano
+ * starter@example.com             member - Starter         Milano
+ * dormiente@example.com           member - Dormant         Milano
+ * perso@example.com               member - Churn           Milano
  *
- * -- Circuito Nord · TWO gyms · sells SUBSCRIPTIONS -------------------------
- * nord@example.com                  owner                   whole circuit
- * monza@example.com                 owner                   MONZA ONLY
- * reception.nord@example.com        front desk              Monza
- * trainer.nord@example.com          trainer   (ACTIVE)      Monza
- * trainer.como@example.com          trainer   (DEACTIVATED) Como
- * nord.lead@example.com             member — Lead           Monza
- * como.cliente@example.com          member — Client         Como
+ * -- Circuito Nord ---------------------------------------------------------
+ * nord@example.com                owner                    WHOLE circuit
+ * bologna@example.com             owner                    BOLOGNA ONLY
+ * reception.bologna@example.com   front desk               Bologna
+ * trainer.bologna@example.com     trainer   (ACTIVE)       Bologna
+ * trainer.torino@example.com      trainer   (DEACTIVATED)  Torino
+ * bologna.lead@example.com        member - Lead            Bologna
+ * torino.cliente@example.com      member - Client          Torino
  *
  * -- The awkward one -------------------------------------------------------
- * duecappelli@example.com           TRAINER at Studio Seregno
- *                                   AND a MEMBER at Circuito Nord (Monza)
+ * duecappelli@example.com         TRAINER at Studio Corpo Libero
+ *                                 AND a MEMBER at Circuito Nord (Bologna)
  * ---------------------------------------------------------------------------
  *
  * These are development fixtures, not real people. The password is shared and
@@ -56,11 +68,11 @@ export const DEMO_PASSWORD = "Palestra2026!";
 
 /** Fixed identifiers, because the wall tests name some of them directly. */
 export const IDS = {
-  seregno: "11111111-1111-1111-1111-111111111111",
+  corpoLibero: "11111111-1111-1111-1111-111111111111",
   nord: "22222222-2222-2222-2222-222222222222",
-  seregnoGym: "aaaaaaaa-0000-0000-0000-000000000001",
-  monza: "bbbbbbbb-0000-0000-0000-000000000001",
-  como: "bbbbbbbb-0000-0000-0000-000000000002",
+  milano: "aaaaaaaa-0000-0000-0000-000000000001",
+  bologna: "bbbbbbbb-0000-0000-0000-000000000001",
+  torino: "bbbbbbbb-0000-0000-0000-000000000002",
 } as const;
 
 type Lifecycle = "LEAD" | "STARTER" | "CLIENT" | "DORMANT" | "CHURN";
@@ -99,7 +111,7 @@ const PEOPLE: SeedPerson[] = [
     description: "PLATFORM ADMIN — sees every company. The owner's own account",
   },
 
-  // --- Studio Seregno: one gym, credits, the founding tenant ---------------
+  // --- Studio Corpo Libero: one gym, credits, the founding tenant ---------------
 
   {
     email: "titolare@example.com",
@@ -107,23 +119,23 @@ const PEOPLE: SeedPerson[] = [
     language: "IT",
     platformRoles: [],
     memberships: [
-      { companyId: IDS.seregno, gymId: null, role: "GYM_OWNER" },
+      { companyId: IDS.corpoLibero, gymId: null, role: "GYM_OWNER" },
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "TRAINER",
         compensation: { model: "OWNER_DRAW", amount: null },
       },
     ],
-    description: "owner AND trainer at Studio Seregno — one person, two roles",
+    description: "owner AND trainer at Studio Corpo Libero — one person, two roles",
   },
   {
     email: "reception@example.com",
     name: "Sara Reception",
     language: "IT",
     platformRoles: [],
-    memberships: [{ companyId: IDS.seregno, gymId: IDS.seregnoGym, role: "STAFF" }],
-    description: "front desk at Seregno — adds members, cannot see money",
+    memberships: [{ companyId: IDS.corpoLibero, gymId: IDS.milano, role: "STAFF" }],
+    description: "front desk at Milano — adds members, cannot see money",
   },
   {
     email: "trainer@example.com",
@@ -132,13 +144,13 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "TRAINER",
         compensation: { model: "PER_SESSION", amount: "25.00" },
       },
     ],
-    description: "ACTIVE trainer at Seregno, junior (per session), app in English",
+    description: "ACTIVE trainer at Milano, junior (per session), app in English",
   },
   {
     email: "senior@example.com",
@@ -147,14 +159,14 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "TRAINER",
         isActive: false,
         compensation: { model: "REVENUE_SHARE", amount: "45.00" },
       },
     ],
-    description: "DEACTIVATED trainer at Seregno, senior (revenue share) — history kept",
+    description: "DEACTIVATED trainer at Milano, senior (revenue share) — history kept",
   },
   {
     email: "cliente@example.com",
@@ -163,15 +175,15 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "MEMBER",
         lifecycleState: "CLIENT",
         level: "Intermedio",
         packageCap: 3,
       },
     ],
-    description: "member at Seregno — CLIENT, level Intermedio, package up to 3",
+    description: "member at Milano — CLIENT, level Intermedio, package up to 3",
   },
   {
     email: "cliente2@example.com",
@@ -180,13 +192,13 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "MEMBER",
         lifecycleState: "LEAD",
       },
     ],
-    description: "member at Seregno — LEAD. Wall test (c) uses this one",
+    description: "member at Milano — LEAD. Wall test (c) uses this one",
   },
   {
     email: "starter@example.com",
@@ -195,14 +207,14 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "MEMBER",
         lifecycleState: "STARTER",
         level: "Base",
       },
     ],
-    description: "member at Seregno — STARTER (bought the entry pack)",
+    description: "member at Milano — STARTER (bought the entry pack)",
   },
   {
     email: "dormiente@example.com",
@@ -211,14 +223,14 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "MEMBER",
         lifecycleState: "DORMANT",
         level: "Intermedio",
       },
     ],
-    description: "member at Seregno — DORMANT (stopped coming)",
+    description: "member at Milano — DORMANT (stopped coming)",
   },
   {
     email: "perso@example.com",
@@ -227,13 +239,13 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "MEMBER",
         lifecycleState: "CHURN",
       },
     ],
-    description: "member at Seregno — CHURN (gone)",
+    description: "member at Milano — CHURN (gone)",
   },
 
   // --- Circuito Nord: two gyms, subscriptions ------------------------------
@@ -244,85 +256,85 @@ const PEOPLE: SeedPerson[] = [
     language: "IT",
     platformRoles: [],
     memberships: [{ companyId: IDS.nord, gymId: null, role: "GYM_OWNER" }],
-    description: "owner of the WHOLE Circuito Nord — sees both Monza and Como",
+    description: "owner of the WHOLE Circuito Nord — sees both Bologna and Torino",
   },
   {
-    email: "monza@example.com",
-    name: "Marco Monza",
+    email: "bologna@example.com",
+    name: "Marco Bologna",
     language: "IT",
     platformRoles: [],
-    memberships: [{ companyId: IDS.nord, gymId: IDS.monza, role: "GYM_OWNER" }],
-    description: "owner of MONZA ONLY — must not see Como. Wall test (b)",
+    memberships: [{ companyId: IDS.nord, gymId: IDS.bologna, role: "GYM_OWNER" }],
+    description: "owner of BOLOGNA ONLY — must not see Torino. Wall test (b)",
   },
   {
-    email: "reception.nord@example.com",
+    email: "reception.bologna@example.com",
     name: "Rita Reception",
     language: "IT",
     platformRoles: [],
-    memberships: [{ companyId: IDS.nord, gymId: IDS.monza, role: "STAFF" }],
-    description: "front desk at Monza",
+    memberships: [{ companyId: IDS.nord, gymId: IDS.bologna, role: "STAFF" }],
+    description: "front desk at Bologna",
   },
   {
-    email: "trainer.nord@example.com",
+    email: "trainer.bologna@example.com",
     name: "Nico Trainer",
     language: "IT",
     platformRoles: [],
     memberships: [
       {
         companyId: IDS.nord,
-        gymId: IDS.monza,
+        gymId: IDS.bologna,
         role: "TRAINER",
         compensation: { model: "PER_SESSION", amount: "22.00" },
       },
     ],
-    description: "ACTIVE trainer at Monza, junior (per session)",
+    description: "ACTIVE trainer at Bologna, junior (per session)",
   },
   {
-    email: "trainer.como@example.com",
-    name: "Carla Como",
+    email: "trainer.torino@example.com",
+    name: "Carla Torino",
     language: "IT",
     platformRoles: [],
     memberships: [
       {
         companyId: IDS.nord,
-        gymId: IDS.como,
+        gymId: IDS.torino,
         role: "TRAINER",
         isActive: false,
         compensation: { model: "REVENUE_SHARE", amount: "40.00" },
       },
     ],
-    description: "DEACTIVATED trainer at Como, senior (revenue share)",
+    description: "DEACTIVATED trainer at Torino, senior (revenue share)",
   },
   {
-    email: "nord.lead@example.com",
+    email: "bologna.lead@example.com",
     name: "Nadir Lead",
     language: "IT",
     platformRoles: [],
     memberships: [
       {
         companyId: IDS.nord,
-        gymId: IDS.monza,
+        gymId: IDS.bologna,
         role: "MEMBER",
         lifecycleState: "LEAD",
       },
     ],
-    description: "member at Monza — LEAD",
+    description: "member at Bologna — LEAD",
   },
   {
-    email: "como.cliente@example.com",
-    name: "Carlo Como",
+    email: "torino.cliente@example.com",
+    name: "Carlo Torino",
     language: "IT",
     platformRoles: [],
     memberships: [
       {
         companyId: IDS.nord,
-        gymId: IDS.como,
+        gymId: IDS.torino,
         role: "MEMBER",
         lifecycleState: "CLIENT",
         level: "Avanzato",
       },
     ],
-    description: "member at Como — CLIENT. Invisible to the Monza-only owner",
+    description: "member at Torino — CLIENT. Invisible to the Bologna-only owner",
   },
 
   // --- The awkward one -----------------------------------------------------
@@ -334,20 +346,20 @@ const PEOPLE: SeedPerson[] = [
     platformRoles: [],
     memberships: [
       {
-        companyId: IDS.seregno,
-        gymId: IDS.seregnoGym,
+        companyId: IDS.corpoLibero,
+        gymId: IDS.milano,
         role: "TRAINER",
         compensation: { model: "PER_SESSION", amount: "28.00" },
       },
       {
         companyId: IDS.nord,
-        gymId: IDS.monza,
+        gymId: IDS.bologna,
         role: "MEMBER",
         lifecycleState: "CLIENT",
         level: "Avanzato",
       },
     ],
-    description: "TWO HATS — trainer at Studio Seregno, member at Circuito Nord",
+    description: "TWO HATS — trainer at Studio Corpo Libero, member at Circuito Nord",
   },
 ];
 
@@ -368,8 +380,8 @@ export async function seedDemoWorld(
   // has the two shapes the owner asked for (docs/decisions.md, 2026-08-22).
   const companies = [
     {
-      id: IDS.seregno,
-      name: "Studio Seregno",
+      id: IDS.corpoLibero,
+      name: "Studio Corpo Libero",
       settings: { businessModel: "CREDITS", demo: true },
     },
     {
@@ -388,9 +400,9 @@ export async function seedDemoWorld(
   }
 
   const gyms = [
-    { id: IDS.seregnoGym, companyId: IDS.seregno, name: "Seregno", city: "Seregno" },
-    { id: IDS.monza, companyId: IDS.nord, name: "Monza", city: "Monza" },
-    { id: IDS.como, companyId: IDS.nord, name: "Como", city: "Como" },
+    { id: IDS.milano, companyId: IDS.corpoLibero, name: "Milano", city: "Milano" },
+    { id: IDS.bologna, companyId: IDS.nord, name: "Bologna", city: "Bologna" },
+    { id: IDS.torino, companyId: IDS.nord, name: "Torino", city: "Torino" },
   ];
 
   for (const gym of gyms) {
@@ -469,8 +481,8 @@ export async function seedDemoWorld(
 
   // Give the active trainers some assigned members, so deactivating one has something
   // real to release — which is the point the acceptance script asks the owner to watch.
-  await assignDefaultTrainer(prisma, "trainer@example.com", IDS.seregnoGym);
-  await assignDefaultTrainer(prisma, "trainer.nord@example.com", IDS.monza);
+  await assignDefaultTrainer(prisma, "trainer@example.com", IDS.milano);
+  await assignDefaultTrainer(prisma, "trainer.bologna@example.com", IDS.bologna);
 }
 
 async function assignDefaultTrainer(
@@ -496,8 +508,8 @@ export function demoConnectionString(): string | undefined {
 
 export function printAccounts(): void {
   console.log("");
-  console.log("  Studio Seregno   1 gym  (Seregno)          sells CREDITS");
-  console.log("  Circuito Nord    2 gyms (Monza, Como)      sells SUBSCRIPTIONS");
+  console.log("  Studio Corpo Libero   1 gym  (Milano)          sells CREDITS");
+  console.log("  Circuito Nord    2 gyms (Bologna, Torino)      sells SUBSCRIPTIONS");
   console.log("");
   for (const person of PEOPLE) {
     console.log(`  ${person.email.padEnd(28)} ${person.description}`);

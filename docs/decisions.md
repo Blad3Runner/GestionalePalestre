@@ -876,6 +876,58 @@ done.
 
 ---
 
+## 2026-08-22 — What the owner's first acceptance run found
+
+The owner worked through `docs/acceptance/steps-1-4.md` and reported eight things. Two were
+defects in the script rather than in the system; four were real warts on screen; one was a
+genuine gap; one was a naming problem serious enough to fix everywhere. All are dealt with
+here.
+
+**Company and gym names can never overlap again.** The demo world had a company called
+*Studio Seregno* whose only gym was also called *Seregno*, in a circuit whose gyms were
+Monza and Como. Reading a dropdown, there was no way to tell which word meant the business
+and which meant the building. On the owner's instruction the two are now kept in separate
+vocabularies: **a company name never contains a city, and a gym name is only ever a city.**
+
+- **Studio Corpo Libero** — one gym, **Milano**. Sells credits. The founding tenant.
+- **Circuito Nord** — two gyms, **Bologna** and **Torino**. Sells subscriptions.
+
+Two tests in `demo-world.test.ts` now fail if a company is ever given a name containing one
+of its own gyms, or if two gyms share a name.
+
+**The platform admin's location list no longer repeats itself.** It offered both
+"the whole company" and "its only gym" for a single-gym company — the same thing twice,
+which reads as a bug rather than as precision. The circuit-wide entry is now offered only
+where there is genuinely a circuit to stand above.
+
+**The "Cambia sede" label is visible.** It existed only for screen readers, so the owner saw
+a bare dropdown with nothing saying what it was for.
+
+**The member list now says where it is looking.** It read "Le persone iscritte in questa
+sede" — *at this location* — even for a company-level owner who was in fact seeing every
+location at once. It now distinguishes the two.
+
+**A person created by the platform admin has no password, and the screen now says so.** This
+was correct behaviour reported as a bug, because nothing on screen explained it. Worth
+recording precisely, because it bites in the sandbox: every demo address ends in
+`@example.com`, and **Resend refuses those outright** ("please use our testing email address
+instead of domains like example.com"). The reset link therefore never arrives by email — it
+falls back to being printed in the terminal running `npm run dev`, which is where the owner
+must look. That is workable but poor, and is now open question **OQ-11**.
+
+**Two corrections to the script itself, which was wrong rather than the system.** It promised
+a location switcher to the owner of the whole circuit — who has exactly one scope and
+therefore gets none — and it described the gym name as a heading when it was a phrase at the
+end of a sentence. The script had been written partly from the tests rather than entirely
+from the screen. Both fixed, and the remaining items were re-walked in a browser before
+being rewritten.
+
+**Consequence for how acceptance scripts are written:** every expected result must be
+observed on the screen it describes, not inferred from a passing test. A test proves the
+system does something; only looking proves the owner can see it.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
@@ -909,6 +961,25 @@ place is **arbitrary**, which is a poor thing for it to be. Three plausible answ
 the **strongest** role held; land on the **most recently used** place, remembered per person;
 or **ask** on first sign-in. Needs deciding before real owners use the system daily — it is
 the first thing they will see every morning.
+
+**OQ-10 · Should the owner of a whole circuit be able to narrow to one gym?** Today they
+cannot. A company-level owner holds a single scope covering everything they own, so they get
+no location switcher and see every gym's members in one list, told apart by the "Sede"
+column. That is correct and often what they want. But a two-gym owner who is working at
+Bologna today has no way to say so, while the platform admin — who is *less* attached to the
+business — can. Narrowing would mean handing them a gym-level badge, which is a *narrower*
+badge than they already hold, so nothing is weakened by it. Not urgent; it becomes more
+pressing once there are calendars and takings to look at per location.
+
+**OQ-11 · How should somebody created through a screen get their first password?** Today
+they get none, on purpose: they set their own through "Password dimenticata", exactly as a
+member added at the desk does. In the sandbox this does not work smoothly, because every demo
+address ends in `@example.com` and Resend refuses to send to those, so the link only appears
+in the terminal. Three options: leave it and document the terminal (today's answer); show the
+platform admin a single-use reset link on screen immediately after creating somebody, which
+is no escalation since they created the account anyway; or let the admin set an initial
+password, which is the weakest of the three because it puts a real password in a second pair
+of hands. Needs answering before anybody onboards staff for real.
 
 *(OQ-7, the email provider, was answered on 2026-07-30: **Resend**. See the decision above.)*
 

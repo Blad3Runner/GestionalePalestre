@@ -52,9 +52,9 @@ type TestScope = {
 
 const SEREGNO: TestScope = {
   companyId: "company-a",
-  companyName: "Studio Seregno",
+  companyName: "Studio Corpo Libero",
   gymId: "gym-a",
-  gymName: "Seregno",
+  gymName: "Milano",
   role: "TRAINER",
   level: "WORKER",
 };
@@ -63,7 +63,7 @@ const NORD_MEMBER: TestScope = {
   companyId: "company-b",
   companyName: "Circuito Nord",
   gymId: "gym-b",
-  gymName: "Monza",
+  gymName: "Bologna",
   role: "MEMBER",
   level: "CLIENT",
 };

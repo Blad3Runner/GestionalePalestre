@@ -19,11 +19,11 @@ import type { AccessLevel } from "@/lib/tenancy/badge";
  */
 
 // Fixed in prisma/seed.ts so the tests can name them.
-const SEREGNO = "11111111-1111-1111-1111-111111111111";
+const CORPO_LIBERO = "11111111-1111-1111-1111-111111111111";
 const NORD = "22222222-2222-2222-2222-222222222222";
-const SEREGNO_GYM = "aaaaaaaa-0000-0000-0000-000000000001";
-const MONZA = "bbbbbbbb-0000-0000-0000-000000000001";
-const COMO = "bbbbbbbb-0000-0000-0000-000000000002";
+const MILANO = "aaaaaaaa-0000-0000-0000-000000000001";
+const BOLOGNA = "bbbbbbbb-0000-0000-0000-000000000001";
+const TORINO = "bbbbbbbb-0000-0000-0000-000000000002";
 
 let client: pg.Client;
 /** A privileged connection, used ONLY to prove the hidden rows genuinely exist. */
@@ -124,7 +124,7 @@ describe("the rows really are there — otherwise nothing below means anything",
 
   it("has the very rows the wall tests will fail to see", async () => {
     // Each of these is something a restricted badge is asked for below and must not get.
-    const como = await control.query("SELECT id FROM dim_gym WHERE id = $1", [COMO]);
+    const como = await control.query("SELECT id FROM dim_gym WHERE id = $1", [TORINO]);
     const nord = await control.query("SELECT id FROM dim_company WHERE id = $1", [NORD]);
     const other = await control.query(
       "SELECT id FROM dim_person WHERE email = 'cliente2@example.com'",
@@ -188,7 +188,7 @@ describe("(d) no badge at all", () => {
     // The whole safety argument rests on this: code that forgets to set a badge gets
     // no rows, not everybody's rows.
     const found = await asBadge(null, () =>
-      count("SELECT * FROM dim_company WHERE id = $1", [SEREGNO]),
+      count("SELECT * FROM dim_company WHERE id = $1", [CORPO_LIBERO]),
     );
     expect(found).toBe(0);
   });
@@ -197,7 +197,7 @@ describe("(d) no badge at all", () => {
 describe("(a) a company badge reaching for another company", () => {
   it("cannot see the other company", async () => {
     const found = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: await personId("titolare@example.com") },
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: await personId("titolare@example.com") },
       () => count("SELECT * FROM dim_company WHERE id = $1", [NORD]),
     );
     expect(found).toBe(0);
@@ -205,15 +205,15 @@ describe("(a) a company badge reaching for another company", () => {
 
   it("cannot see the other company's gyms, even naming them directly", async () => {
     const found = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: await personId("titolare@example.com") },
-      () => count("SELECT * FROM dim_gym WHERE id = ANY($1)", [[MONZA, COMO]]),
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: await personId("titolare@example.com") },
+      () => count("SELECT * FROM dim_gym WHERE id = ANY($1)", [[BOLOGNA, TORINO]]),
     );
     expect(found).toBe(0);
   });
 
   it("cannot see the other company's memberships", async () => {
     const found = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: await personId("titolare@example.com") },
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: await personId("titolare@example.com") },
       () => count("SELECT * FROM bridge_membership WHERE company_id = $1", [NORD]),
     );
     expect(found).toBe(0);
@@ -222,7 +222,7 @@ describe("(a) a company badge reaching for another company", () => {
   it("cannot see people who belong only to the other company", async () => {
     const outsider = await personId("nord@example.com");
     const found = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: await personId("titolare@example.com") },
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: await personId("titolare@example.com") },
       () => count("SELECT * FROM dim_person WHERE id = $1", [outsider]),
     );
     expect(found).toBe(0);
@@ -230,8 +230,8 @@ describe("(a) a company badge reaching for another company", () => {
 
   it("still sees its own company perfectly well — the wall is not simply blocking everything", async () => {
     const found = await asBadge(
-      { level: "COMPANY", companyId: SEREGNO, personId: await personId("titolare@example.com") },
-      () => count("SELECT * FROM dim_company WHERE id = $1", [SEREGNO]),
+      { level: "COMPANY", companyId: CORPO_LIBERO, personId: await personId("titolare@example.com") },
+      () => count("SELECT * FROM dim_company WHERE id = $1", [CORPO_LIBERO]),
     );
     expect(found).toBe(1);
   });
@@ -243,10 +243,10 @@ describe("(b) a gym-level badge and its sibling gyms", () => {
       {
         level: "GYM",
         companyId: NORD,
-        gymId: MONZA,
-        personId: await personId("monza@example.com"),
+        gymId: BOLOGNA,
+        personId: await personId("bologna@example.com"),
       },
-      () => count("SELECT * FROM dim_gym WHERE id = $1", [COMO]),
+      () => count("SELECT * FROM dim_gym WHERE id = $1", [TORINO]),
     );
     expect(found).toBe(0);
   });
@@ -256,12 +256,12 @@ describe("(b) a gym-level badge and its sibling gyms", () => {
       {
         level: "GYM",
         companyId: NORD,
-        gymId: MONZA,
-        personId: await personId("monza@example.com"),
+        gymId: BOLOGNA,
+        personId: await personId("bologna@example.com"),
       },
       async () => (await client.query("SELECT id FROM dim_gym")).rows,
     );
-    expect(rows.map((row) => row.id)).toEqual([MONZA]);
+    expect(rows.map((row) => row.id)).toEqual([BOLOGNA]);
   });
 
   it("is genuinely narrower than the company owner above it", async () => {
@@ -280,8 +280,8 @@ describe("(c) a client badge and other clients", () => {
     const found = await asBadge(
       {
         level: "CLIENT",
-        companyId: SEREGNO,
-        gymId: SEREGNO_GYM,
+        companyId: CORPO_LIBERO,
+        gymId: MILANO,
         personId: await personId("cliente@example.com"),
       },
       () => count("SELECT * FROM dim_person WHERE id = $1", [other]),
@@ -294,8 +294,8 @@ describe("(c) a client badge and other clients", () => {
     const found = await asBadge(
       {
         level: "CLIENT",
-        companyId: SEREGNO,
-        gymId: SEREGNO_GYM,
+        companyId: CORPO_LIBERO,
+        gymId: MILANO,
         personId: await personId("cliente@example.com"),
       },
       () => count("SELECT * FROM bridge_membership WHERE person_id = $1", [other]),
@@ -306,7 +306,7 @@ describe("(c) a client badge and other clients", () => {
   it("cannot list the gym's other people by asking for all of them", async () => {
     const me = await personId("cliente@example.com");
     const rows = await asBadge(
-      { level: "CLIENT", companyId: SEREGNO, gymId: SEREGNO_GYM, personId: me },
+      { level: "CLIENT", companyId: CORPO_LIBERO, gymId: MILANO, personId: me },
       async () => (await client.query("SELECT id FROM dim_person")).rows,
     );
     expect(rows.map((row) => row.id)).toEqual([me]);
@@ -315,7 +315,7 @@ describe("(c) a client badge and other clients", () => {
   it("can still see itself", async () => {
     const me = await personId("cliente@example.com");
     const found = await asBadge(
-      { level: "CLIENT", companyId: SEREGNO, gymId: SEREGNO_GYM, personId: me },
+      { level: "CLIENT", companyId: CORPO_LIBERO, gymId: MILANO, personId: me },
       () => count("SELECT * FROM dim_person WHERE id = $1", [me]),
     );
     expect(found).toBe(1);
@@ -325,7 +325,7 @@ describe("(c) a client badge and other clients", () => {
     const me = await personId("cliente@example.com");
     const admin = await personId("admin@example.com");
     const found = await asBadge(
-      { level: "CLIENT", companyId: SEREGNO, gymId: SEREGNO_GYM, personId: me },
+      { level: "CLIENT", companyId: CORPO_LIBERO, gymId: MILANO, personId: me },
       () => count("SELECT * FROM person_role WHERE person_id = $1", [admin]),
     );
     expect(found).toBe(0);
@@ -357,7 +357,7 @@ describe("a badge that claims more than it should", () => {
     // confines it to its own rows, and its own rows are not in that company.
     const me = await personId("cliente@example.com");
     const found = await asBadge(
-      { level: "CLIENT", companyId: NORD, gymId: MONZA, personId: me },
+      { level: "CLIENT", companyId: NORD, gymId: BOLOGNA, personId: me },
       () => count("SELECT * FROM bridge_membership"),
     );
     expect(found).toBe(0);
@@ -371,7 +371,7 @@ describe("a badge that claims more than it should", () => {
 
     for (const level of ["PLATFORM", "COMPANY", "GYM", "WORKER", "CLIENT"] as const) {
       await expect(
-        asBadge({ level, companyId: SEREGNO, gymId: SEREGNO_GYM, personId: admin }, () =>
+        asBadge({ level, companyId: CORPO_LIBERO, gymId: MILANO, personId: admin }, () =>
           count("SELECT * FROM password_reset_token"),
         ),
         `${level} was not refused outright`,

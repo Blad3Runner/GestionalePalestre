@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getText } from "@/i18n/server";
+import { fill } from "@/i18n/dictionaries";
 import { PATHS, requireAccess } from "@/lib/auth/guard";
 import { listMembers } from "@/lib/members/queries";
 import { AddMemberForm } from "./add-member-form";
@@ -11,15 +12,20 @@ export default async function MembersPage() {
   const t = await getText();
   const members = await listMembers(viewer);
 
+  // Say plainly WHERE this list comes from. A gym-level badge is looking at one
+  // location; a company-level one is looking at every location it owns at once, and
+  // calling that "this location" was simply wrong.
+  const scope = viewer.activeScope;
+  const where = scope
+    ? scope.gymName
+      ? fill(t.members.ledeGym, { place: scope.gymName })
+      : fill(t.members.ledeCompany, { place: scope.companyName })
+    : t.members.lede;
+
   return (
     <main>
       <h1>{t.members.title}</h1>
-      <p className="lede">
-        {t.members.lede}
-        {viewer.activeScope
-          ? ` — ${viewer.activeScope.gymName ?? viewer.activeScope.companyName}`
-          : ""}
-      </p>
+      <p className="lede">{where}</p>
 
       <div className="card">
         {members.length === 0 ? (

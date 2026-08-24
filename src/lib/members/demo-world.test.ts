@@ -40,7 +40,7 @@ describe("the two companies have deliberately different shapes", () => {
     const company = await one<{ name: string; settings: { businessModel?: string }; gyms: number }>(`
       SELECT c.name, c.settings, count(g.id)::int AS gyms
       FROM dim_company c LEFT JOIN dim_gym g ON g.company_id = c.id
-      WHERE c.name = 'Studio Seregno'
+      WHERE c.name = 'Studio Corpo Libero'
       GROUP BY c.id
     `);
 
@@ -71,7 +71,7 @@ describe("the two companies have deliberately different shapes", () => {
     const count = (company: string, role: string) =>
       rows.find((row) => row.company === company && row.role === role)?.n ?? 0;
 
-    for (const company of ["Studio Seregno", "Circuito Nord"]) {
+    for (const company of ["Studio Corpo Libero", "Circuito Nord"]) {
       expect(count(company, "GYM_OWNER"), `${company} has no owner`).toBeGreaterThanOrEqual(1);
       expect(count(company, "STAFF"), `${company} has no front desk`).toBeGreaterThanOrEqual(1);
       expect(count(company, "TRAINER"), `${company} needs two trainers`).toBeGreaterThanOrEqual(2);
@@ -88,7 +88,7 @@ describe("the two companies have deliberately different shapes", () => {
 
     expect(rows.map((row) => [row.company, row.n])).toEqual([
       ["Circuito Nord", 1],
-      ["Studio Seregno", 1],
+      ["Studio Corpo Libero", 1],
     ]);
   });
 });
@@ -115,7 +115,7 @@ describe("the person with two hats", () => {
     expect(rows[0].company).toBe("Circuito Nord");
     expect(rows[0].role).toBe("MEMBER");
     expect(rows[0].lifecycle_state).toBe("CLIENT");
-    expect(rows[1].company).toBe("Studio Seregno");
+    expect(rows[1].company).toBe("Studio Corpo Libero");
     expect(rows[1].role).toBe("TRAINER");
     // A trainer is not a member of the place they work; the state belongs to the
     // membership, not the person.
@@ -130,7 +130,7 @@ describe("the person with two hats", () => {
     expect(rows, "dim_person grew a company_id — the two-hats case is now impossible").toEqual([]);
   });
 
-  it("is paid as a trainer at Seregno and owes nothing as a member at Nord", async () => {
+  it("is paid as a trainer at Corpo Libero and owes nothing as a member at Nord", async () => {
     const { rows } = await db.query(`
       SELECT c.name AS company, tc.model
       FROM dim_trainer_compensation tc
@@ -141,7 +141,7 @@ describe("the person with two hats", () => {
     `);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].company).toBe("Studio Seregno");
+    expect(rows[0].company).toBe("Studio Corpo Libero");
   });
 });
 
@@ -237,5 +237,36 @@ describe("the members the acceptance script walks through", () => {
       admin.memberships,
       "the founders belong to no gym — that is what platform level means",
     ).toBe(0);
+  });
+});
+
+describe("the names cannot be confused with each other", () => {
+  /**
+   * The first demo world had a company called "Studio Seregno" whose only gym was
+   * also called "Seregno". Reading a dropdown, there was no way to tell which word
+   * meant the business and which meant the building. Renamed on the owner's
+   * instruction (docs/decisions.md, 2026-08-22), and locked here so it cannot drift
+   * back.
+   */
+  it("never gives a company a name that contains one of its cities", async () => {
+    const { rows } = await db.query(`
+      SELECT c.name AS company, g.name AS gym
+      FROM dim_company c JOIN dim_gym g ON g.company_id = c.id
+    `);
+
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(
+        row.company.toLowerCase().includes(row.gym.toLowerCase()),
+        `company "${row.company}" contains its own gym's name "${row.gym}" — ` +
+          "the two read as the same thing on screen",
+      ).toBe(false);
+    }
+  });
+
+  it("gives every gym a distinct name, so a dropdown is never ambiguous", async () => {
+    const { rows } = await db.query("SELECT name FROM dim_gym");
+    const names = rows.map((row) => row.name);
+    expect(new Set(names).size, `duplicate gym names: ${names.join(", ")}`).toBe(names.length);
   });
 });

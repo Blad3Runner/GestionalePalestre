@@ -232,6 +232,12 @@ a {
   border-color: var(--ok);
 }
 
+.scope-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-right: 0.4rem;
+}
+
 .scope-select {
   max-width: 15rem;
   padding: 0.2rem 0.35rem;

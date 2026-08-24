@@ -63,7 +63,11 @@ export function NewPersonForm({
         {pending ? t.common.loading : t.platform.create}
       </button>
 
-      <p className="lede" style={{ margin: "0.5rem 0 0", fontSize: "0.85rem" }}>
+      <p className="notice" style={{ margin: "0.5rem 0 0" }}>
+        {t.platform.noPasswordYet}
+      </p>
+
+      <p className="lede" style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>
         {t.platform.noAdminHere}
       </p>
     </form>

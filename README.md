@@ -97,30 +97,37 @@ npm run db:seed
 
 All accounts use the password `Palestra2026!`. They exist only on your computer.
 
-There are **two demo companies, deliberately shaped differently**: *Studio Seregno* — one
-gym, sells credits, the founding tenant — and *Circuito Nord* — two gyms (Monza and Como),
-sells subscriptions.
+**A COMPANY is the tenant** — the business, the thing with walls around it. **A GYM is one
+physical location** belonging to exactly one company. A company may own one gym or several.
+**A company name never contains a city; a gym name is only ever a city**, so the two can
+never be confused.
+
+| | Studio Corpo Libero | Circuito Nord |
+| --- | --- | --- |
+| **Gyms** | **1** — Milano | **2** — Bologna, Torino |
+| **Sells** | Credits | Subscriptions |
+| **Why** | The founding tenant | A chain, so sibling-gym walls can be tested |
 
 | Email | Who they are | What they can see |
 | --- | --- | --- |
 | `admin@example.com` | Platform admin | Everything, across every company |
-| `titolare@example.com` | Owner **and** trainer at Studio Seregno | The whole company |
-| `reception@example.com` | Front desk at Seregno | That gym |
-| `trainer@example.com` | Trainer at Seregno, active *(in English)* | That gym |
-| `senior@example.com` | Trainer at Seregno, **deactivated** | Nothing — but his history survives |
-| `cliente@example.com` | Member at Seregno — Client | Only their own things |
-| `cliente2@example.com` | Member at Seregno — Lead | Only their own things |
-| `starter@example.com` | Member at Seregno — Starter | Only their own things |
-| `dormiente@example.com` | Member at Seregno — Dormant | Only their own things |
-| `perso@example.com` | Member at Seregno — Churn | Only their own things |
-| `nord@example.com` | Owner of the whole Circuito Nord | Both Monza and Como |
-| `monza@example.com` | Owner of **Monza only** | Monza — never Como |
-| `reception.nord@example.com` | Front desk at Monza | That gym |
-| `trainer.nord@example.com` | Trainer at Monza, active | That gym |
-| `trainer.como@example.com` | Trainer at Como, **deactivated** | Nothing — history survives |
-| `nord.lead@example.com` | Member at Monza — Lead | Only their own things |
-| `como.cliente@example.com` | Member at Como — Client | Only their own things |
-| `duecappelli@example.com` | **Trainer at Seregno *and* member at Nord** | Different things in each |
+| `titolare@example.com` | Owner **and** trainer at Corpo Libero | The whole company |
+| `reception@example.com` | Front desk at Milano | That gym |
+| `trainer@example.com` | Trainer at Milano, active *(in English)* | That gym |
+| `senior@example.com` | Trainer at Milano, **deactivated** | Nothing — history survives |
+| `cliente@example.com` | Member at Milano — Cliente (Client) | Only their own things |
+| `cliente2@example.com` | Member at Milano — Contatto (Lead) | Only their own things |
+| `starter@example.com` | Member at Milano — Starter | Only their own things |
+| `dormiente@example.com` | Member at Milano — Inattivo (Dormant) | Only their own things |
+| `perso@example.com` | Member at Milano — Perso (Churned) | Only their own things |
+| `nord@example.com` | Owner of the **whole** Circuito Nord | Bologna and Torino at once |
+| `bologna@example.com` | Owner of **Bologna only** | Bologna — never Torino |
+| `reception.bologna@example.com` | Front desk at Bologna | That gym |
+| `trainer.bologna@example.com` | Trainer at Bologna, active | That gym |
+| `trainer.torino@example.com` | Trainer at Torino, **deactivated** | Nothing — history survives |
+| `bologna.lead@example.com` | Member at Bologna — Contatto (Lead) | Only their own things |
+| `torino.cliente@example.com` | Member at Torino — Cliente (Client) | Only their own things |
+| `duecappelli@example.com` | **Trainer at Corpo Libero *and* member at Nord** | Different things in each |
 
 ### Trying it properly
 
@@ -133,8 +140,8 @@ Three things worth trying immediately:
 
 - Sign in as `cliente@example.com` and type <http://localhost:3000/admin> into the address
   bar. You will be refused, not merely shown an empty menu.
-- Sign in as `monza@example.com` and note that Como does not exist as far as they are
-  concerned — not hidden, genuinely unreachable, enforced by the database itself.
+- Sign in as `bologna@example.com` and note that Torino does not exist as far as they
+  are concerned — not hidden, genuinely unreachable, enforced by the database itself.
 - Sign in as `duecappelli@example.com` and use the location switcher. The same person is a
   trainer at one company and a member at another, with one login.
 

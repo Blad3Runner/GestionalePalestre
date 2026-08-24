@@ -82,6 +82,8 @@ const it = {
   members: {
     title: "Clienti",
     lede: "Le persone iscritte in questa sede.",
+    ledeGym: "Le persone iscritte a {place}.",
+    ledeCompany: "Le persone iscritte in tutte le sedi di {place}.",
     none: "Nessun cliente ancora. Aggiungine uno qui sotto.",
     name: "Nome",
     email: "Email",
@@ -177,6 +179,8 @@ const it = {
     failed: "Non è stato possibile salvare.",
     noAdminHere:
       "Non si creano altri amministratori di piattaforma da qui: l'applicazione non ne ha il permesso, per scelta.",
+    noPasswordYet:
+      "La persona appena creata NON ha una password e non può ancora entrare. La imposta da sola con «Password dimenticata» dalla pagina di accesso.",
   },
   pages: {
     adminTitle: "Amministrazione piattaforma",
@@ -275,6 +279,8 @@ const en: Dictionary = {
   members: {
     title: "Members",
     lede: "The people signed up at this location.",
+    ledeGym: "The people signed up at {place}.",
+    ledeCompany: "The people signed up across every location of {place}.",
     none: "No members yet. Add one below.",
     name: "Name",
     email: "Email",
@@ -370,6 +376,8 @@ const en: Dictionary = {
     failed: "It was not possible to save.",
     noAdminHere:
       "Further platform administrators are not created here: the application has no permission to, by choice.",
+    noPasswordYet:
+      "The person you just created has NO password and cannot sign in yet. They set their own through “Forgotten password” on the sign-in page.",
   },
   pages: {
     adminTitle: "Platform administration",
