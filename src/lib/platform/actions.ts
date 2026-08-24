@@ -6,6 +6,8 @@ import { hash } from "bcryptjs";
 import { withBadge } from "@/lib/db";
 import { PATHS, requireAccess } from "@/lib/auth/guard";
 import { normaliseEmail } from "@/lib/auth/passwords";
+import { createFirstSignInLink } from "@/lib/auth/password-reset";
+import { headers } from "next/headers";
 
 /**
  * Setting up a tenant: a company, its gyms, and the people in it.
@@ -120,7 +122,25 @@ export async function createGymAction(
 export type CreatePersonState = {
   error: "missingFields" | "emailTaken" | "badRole" | "unknownPlace" | "failed" | null;
   createdId?: string;
+  /** Who was just created, so the screen can say whose link this is. */
+  createdName?: string;
+  /**
+   * A single-use, one-hour link letting the new person choose their own password
+   * (docs/decisions.md, 2026-08-22, OQ-11). Present only immediately after a
+   * successful creation, and never for anybody who already existed.
+   */
+  firstSignInLink?: string;
 };
+
+/** Where this application is answering, so a link points back at it. */
+async function baseUrl(): Promise<string> {
+  const incoming = await headers();
+  const host = incoming.get("host") ?? "localhost:3000";
+  const protocol = host.startsWith("localhost") || host.startsWith("127.0.0.1")
+    ? "http"
+    : "https";
+  return `${protocol}://${host}`;
+}
 
 /**
  * Creates a person and puts them in one place, in one role.
@@ -206,16 +226,25 @@ export async function createPersonAction(
         });
       }
 
-      return { outcome: "ok" as const, id: membership.id };
+      return { outcome: "ok" as const, id: membership.id, personId };
     });
 
     if (created.outcome === "unknownPlace") {
       return { error: "unknownPlace" };
     }
 
+    // Minted only now, for an account that did not exist a moment ago. An email
+    // already in use never reaches this line — it leaves through `emailTaken` above.
+    const link = await createFirstSignInLink(created.personId, await baseUrl());
+
     revalidatePath("/admin");
     revalidatePath("/admin/people");
-    return { error: null, createdId: created.id };
+    return {
+      error: null,
+      createdId: created.id,
+      createdName: name,
+      firstSignInLink: link,
+    };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     if (message.includes("dim_person_email_key") || message.includes("Unique")) {

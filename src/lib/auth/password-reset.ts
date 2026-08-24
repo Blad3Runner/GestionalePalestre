@@ -6,14 +6,28 @@ import { sendPasswordResetEmail } from "@/lib/email";
 /**
  * The password-reset flow.
  *
+ * **A note on `$queryRaw` versus `$executeRaw`.** The `app.auth_*` functions that
+ * *write* return `void`. Calling them with `$queryRaw` asks Prisma to deserialize a
+ * result set that does not exist, and it throws — which is exactly how this whole flow
+ * came to be broken from Step 2 until 2026-08-22 without a single test noticing, because
+ * the tests covered the hashing helpers and never went near the database. Anything that
+ * returns nothing goes through `$executeRaw`.
+ *
  * Like signing in, this happens before anybody is identified, so it cannot travel with a
  * badge. Every step goes through the narrow `app.auth_*` functions instead — the
  * application has no direct rights on the token table at all. See the
  * row_level_security migration.
  */
 
-/** How long a reset link stays usable. */
-const TOKEN_LIFETIME_MS = 60 * 60 * 1000;
+/**
+ * How long a reset link stays usable, expressed for the database.
+ *
+ * **Not a moment, a duration.** The application no longer computes when a token
+ * expires, nor decides whether it has: both belong to the database clock, after a
+ * two-hour drift made every token expire an hour before it was created
+ * (docs/decisions.md, 2026-08-22).
+ */
+const TOKEN_LIFETIME = "1 hour";
 
 /**
  * Only the hash of a reset token is stored, exactly as for passwords: someone who
@@ -43,7 +57,42 @@ type TokenRow = {
   person_id: string;
   expires_at: Date;
   used_at: Date | null;
+  /** The database's verdict. Never recomputed here — that is how this went wrong. */
+  still_valid: boolean;
 };
+
+/**
+ * Makes a first-time sign-in link for somebody who has just been created.
+ *
+ * **Not a way to reach an existing account.** The only caller is the platform admin's
+ * "new person" screen, which refuses an email that already belongs to somebody — so a
+ * link is only ever minted for an account created a moment earlier by the person now
+ * holding it (docs/decisions.md, 2026-08-22, OQ-11).
+ *
+ * It is the ordinary reset machinery, unchanged: the same one-hour life, the same
+ * single use, and only the *hash* of the token is stored. What differs is that the
+ * link is handed back to the caller instead of being emailed — which is the whole
+ * point, since no demo address can receive email and a real new colleague is usually
+ * standing at the desk anyway.
+ */
+export async function createFirstSignInLink(
+  personId: string,
+  baseUrl: string,
+): Promise<string> {
+  const token = generateToken();
+
+  // `$executeRaw`, not `$queryRaw`: this function returns nothing, and asking Prisma
+  // to deserialize a void result throws.
+  await getPrisma().$executeRaw`
+    SELECT app.auth_create_reset_token(
+      ${personId}::uuid, ${hashToken(token)}, ${TOKEN_LIFETIME}::interval
+    )
+  `;
+
+  const link = new URL("/reset-password", baseUrl);
+  link.searchParams.set("token", token);
+  return link.toString();
+}
 
 /**
  * Starts a password reset.
@@ -67,11 +116,10 @@ export async function requestPasswordReset(
   }
 
   const token = generateToken();
-  const expiresAt = new Date(Date.now() + TOKEN_LIFETIME_MS);
 
-  await prisma.$queryRaw`
+  await prisma.$executeRaw`
     SELECT app.auth_create_reset_token(
-      ${person.id}::uuid, ${hashToken(token)}, ${expiresAt}::timestamptz
+      ${person.id}::uuid, ${hashToken(token)}, ${TOKEN_LIFETIME}::interval
     )
   `;
 
@@ -104,13 +152,15 @@ export async function completePasswordReset(
     SELECT * FROM app.auth_find_reset_token(${hashToken(token)})
   `;
 
-  if (!record || record.used_at !== null || record.expires_at.getTime() < Date.now()) {
+  // The database already decided. Comparing dates here is what hid a two-hour drift
+  // for weeks: wrong on both sides of the comparison, and therefore invisible.
+  if (!record || !record.still_valid) {
     return { ok: false, reason: "invalid-token" };
   }
 
   const passwordHash = await hashPassword(newPassword);
 
-  await prisma.$queryRaw`
+  await prisma.$executeRaw`
     SELECT app.auth_complete_reset(${record.person_id}::uuid, ${passwordHash})
   `;
 

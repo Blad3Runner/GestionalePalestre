@@ -21,10 +21,41 @@ export type MemberRow = {
   joinedAt: Date;
 };
 
-export async function listMembers(viewer: Viewer): Promise<MemberRow[]> {
+/**
+ * The gyms a viewer could sensibly filter by: the ones inside what they can already
+ * see. Empty when there is nothing to choose between, which is most of the time.
+ */
+export async function gymsInScope(
+  viewer: Viewer,
+): Promise<{ id: string; name: string }[]> {
+  return withBadge(viewer.badge, async (tx) => {
+    const gyms = await tx.gym.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    // One gym is not a choice. The database has already removed everything this
+    // badge may not see, so no company filtering is needed here.
+    return gyms.length > 1 ? gyms : [];
+  });
+}
+
+/**
+ * @param gymId narrows the list to one location. **This is a filter, not a
+ * permission**: it changes what is displayed and nothing else. The badge is unchanged,
+ * so the viewer keeps exactly the authority they had — a company owner looking at one
+ * gym is still the company owner (docs/decisions.md, 2026-08-22, OQ-10).
+ *
+ * A gym the badge cannot see returns nothing, because the policies still apply
+ * underneath. Filtering can only ever narrow, never widen.
+ */
+export async function listMembers(
+  viewer: Viewer,
+  gymId?: string | null,
+): Promise<MemberRow[]> {
   return withBadge(viewer.badge, async (tx) => {
     const rows = await tx.membership.findMany({
-      where: { role: "MEMBER" },
+      where: { role: "MEMBER", ...(gymId ? { gymId } : {}) },
       include: { person: true, gym: true },
       orderBy: [{ isActive: "desc" }, { joinedAt: "desc" }],
       take: 200,

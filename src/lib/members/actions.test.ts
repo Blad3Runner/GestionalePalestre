@@ -36,6 +36,8 @@ vi.mock("@/auth", () => ({ auth: () => sessionMock() }));
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => ({ value: `${TEST_COMPANY}:${TEST_GYM}` }) }),
+  // The first-password link has to point back at whatever host answered the request.
+  headers: async () => new Map([["host", "localhost:3000"]]),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
@@ -48,6 +50,9 @@ vi.mock("next/navigation", () => ({
 
 const { createMemberAction, changeLifecycleAction, setTrainerActiveAction } =
   await import("@/lib/members/actions");
+const { listMembers, gymsInScope } = await import("@/lib/members/queries");
+const { createPersonAction } = await import("@/lib/platform/actions");
+const { hashToken } = await import("@/lib/auth/password-reset");
 
 let control: pg.Client;
 
@@ -174,6 +179,10 @@ async function wipeTestCompany(): Promise<void> {
   ]);
   await control.query(`DELETE FROM dim_gym WHERE company_id = $1`, [TEST_COMPANY]);
   await control.query(`DELETE FROM dim_company WHERE id = $1`, [TEST_COMPANY]);
+  await control.query(
+    `DELETE FROM password_reset_token WHERE person_id IN
+       (SELECT id FROM dim_person WHERE email LIKE '%@actions.test')`,
+  );
   await control.query(`DELETE FROM dim_person WHERE email LIKE '%@actions.test'`);
   await control.query(`DELETE FROM audit_log WHERE company_id = $1`, [TEST_COMPANY]);
 }
@@ -575,6 +584,211 @@ describe("deactivating a trainer", () => {
     await expect(
       setTrainerActiveAction(
         form({ membershipId: trainerMembershipId, activate: "false" }),
+      ),
+    ).rejects.toThrow(/REDIRECT:\/denied/);
+  });
+});
+
+describe("narrowing the list to one location", () => {
+  /**
+   * OQ-10, decided 2026-08-22: an owner of a whole company can narrow to one gym.
+   *
+   * The owner's framing matters and is tested here: it is **a filter, not a
+   * permission**. It must never widen what somebody can see, and it must not take
+   * authority away either.
+   */
+  function viewerWithBadge(level: string, gymId: string | null) {
+    return {
+      id: ownerId,
+      name: "Test Owner",
+      email: OWNER_EMAIL,
+      platformRoles: [],
+      scopes: [],
+      activeScope: null,
+      badge: { level, companyId: TEST_COMPANY, gymId, personId: ownerId },
+      effectiveRoles: [],
+      locale: "it",
+    } as never;
+  }
+
+  it("shows every location when nothing is chosen", async () => {
+    const all = await listMembers(viewerWithBadge("COMPANY", null));
+    expect(all.length).toBeGreaterThan(0);
+    expect(all.every((row) => row.gymName === "Test Gym")).toBe(true);
+  });
+
+  it("shows only the chosen location", async () => {
+    const filtered = await listMembers(viewerWithBadge("COMPANY", null), TEST_GYM);
+    expect(filtered.length).toBeGreaterThan(0);
+    expect(filtered.every((row) => row.gymName === "Test Gym")).toBe(true);
+  });
+
+  it("cannot be used to reach a location the badge could not already see", async () => {
+    // A real gym, in the demo world, belonging to a company this badge has no claim on.
+    const stranger = await control.query(
+      "SELECT id FROM dim_gym WHERE name = 'Bologna'",
+    );
+
+    const smuggled = await listMembers(
+      viewerWithBadge("COMPANY", null),
+      stranger.rows[0].id,
+    );
+
+    expect(
+      smuggled,
+      "filtering by another company's gym returned rows — the filter is widening access",
+    ).toEqual([]);
+  });
+
+  it("offers nothing to choose from when there is only one location", async () => {
+    const choices = await gymsInScope(viewerWithBadge("COMPANY", null));
+    expect(choices, "a single gym is not a choice worth offering").toEqual([]);
+  });
+
+  it("leaves the viewer's authority untouched — a filter, not a demotion", async () => {
+    // The badge that went in is the badge that comes out. Narrowing the view must not
+    // quietly narrow the level, or an owner would lose access by tidying their screen.
+    const viewer = viewerWithBadge("COMPANY", null);
+    await listMembers(viewer, TEST_GYM);
+
+    const after = (viewer as unknown as { badge: Record<string, unknown> }).badge;
+    expect(after).toEqual({
+      level: "COMPANY",
+      companyId: TEST_COMPANY,
+      gymId: null,
+      personId: ownerId,
+    });
+  });
+});
+
+describe("the first-password link for somebody just created", () => {
+  /**
+   * OQ-11, decided 2026-08-22: the platform admin is handed a single-use link rather
+   * than setting a password themselves. Nobody ever knows another person's password.
+   */
+  function signedInAsPlatformAdmin() {
+    return {
+      user: {
+        id: ownerId,
+        name: "Ada Fondatrice",
+        email: "admin@actions.test",
+        roles: ["PLATFORM_ADMIN"],
+        scopes: [],
+        locale: "it",
+      },
+    };
+  }
+
+  it("hands back a link, and stores only the hash of the token behind it", async () => {
+    sessionMock.mockResolvedValue(signedInAsPlatformAdmin());
+
+    const result = await createPersonAction(
+      { error: null },
+      form({
+        name: "Nuovo Trainer",
+        email: "nuovo.trainer@actions.test",
+        role: "TRAINER",
+        place: TEST_COMPANY + ":" + TEST_GYM,
+      }),
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.firstSignInLink).toMatch(/\/reset-password\?token=[0-9a-f]{64}$/);
+    expect(result.createdName).toBe("Nuovo Trainer");
+
+    const token = new URL(result.firstSignInLink!).searchParams.get("token")!;
+
+    const stored = await control.query(
+      "SELECT used_at FROM password_reset_token WHERE token_hash = $1",
+      [hashToken(token)],
+    );
+    expect(stored.rows).toHaveLength(1);
+    expect(stored.rows[0].used_at).toBeNull();
+
+    // The raw token is nowhere in the database — only its hash, exactly as for a
+    // password. A stolen backup cannot be turned into a way in.
+    const raw = await control.query(
+      "SELECT count(*)::int AS n FROM password_reset_token WHERE token_hash = $1",
+      [token],
+    );
+    expect(raw.rows[0].n).toBe(0);
+  });
+
+  it("expires within the hour, like any other reset link", async () => {
+    sessionMock.mockResolvedValue(signedInAsPlatformAdmin());
+
+    const result = await createPersonAction(
+      { error: null },
+      form({
+        name: "Scadenza",
+        email: "scadenza@actions.test",
+        role: "STAFF",
+        place: TEST_COMPANY + ":" + TEST_GYM,
+      }),
+    );
+
+    const token = new URL(result.firstSignInLink!).searchParams.get("token")!;
+    const { rows } = await control.query(
+      "SELECT expires_at, now() AS db_now FROM password_reset_token WHERE token_hash = $1",
+      [hashToken(token)],
+    );
+
+    const life = rows[0].expires_at.getTime() - rows[0].db_now.getTime();
+    expect(life).toBeGreaterThan(50 * 60 * 1000);
+    expect(life).toBeLessThanOrEqual(61 * 60 * 1000);
+  });
+
+  it("mints no link at all when the person already exists", async () => {
+    sessionMock.mockResolvedValue(signedInAsPlatformAdmin());
+
+    const first = await createPersonAction(
+      { error: null },
+      form({
+        name: "Doppione",
+        email: "doppione@actions.test",
+        role: "MEMBER",
+        place: TEST_COMPANY + ":" + TEST_GYM,
+      }),
+    );
+    expect(first.error).toBeNull();
+
+    const before = await control.query(
+      "SELECT count(*)::int AS n FROM password_reset_token",
+    );
+
+    const second = await createPersonAction(
+      { error: null },
+      form({
+        name: "Doppione Due",
+        email: "doppione@actions.test",
+        role: "MEMBER",
+        place: TEST_COMPANY + ":" + TEST_GYM,
+      }),
+    );
+
+    const after = await control.query(
+      "SELECT count(*)::int AS n FROM password_reset_token",
+    );
+
+    // This is the whole safety property: the screen can never be used to generate a
+    // way into an account that already belongs to somebody else.
+    expect(second.error).toBe("emailTaken");
+    expect(second.firstSignInLink).toBeUndefined();
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+  });
+
+  it("is refused to anybody who is not a platform admin", async () => {
+    sessionMock.mockResolvedValue(signedInAsOwner());
+
+    await expect(
+      createPersonAction(
+        { error: null },
+        form({
+          name: "Non Ammesso",
+          email: "nonammesso@actions.test",
+          role: "MEMBER",
+          place: TEST_COMPANY + ":" + TEST_GYM,
+        }),
       ),
     ).rejects.toThrow(/REDIRECT:\/denied/);
   });

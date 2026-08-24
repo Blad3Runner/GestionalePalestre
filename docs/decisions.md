@@ -928,6 +928,102 @@ system does something; only looking proves the owner can see it.
 
 ---
 
+## 2026-08-22 — OQ-10 answered: narrowing to one gym is a FILTER, not a demotion
+
+**Decision:** somebody who holds a role over a whole company can narrow what they are
+looking at to a single gym. The owner's words settle the design: *"it's fundamentally a
+filter, but to someone trying to track the status of a gym in terms of bookings and trainer
+appointments, seeing all other gyms is noise."*
+
+**That word decides the implementation.** A filter changes what is **shown**. It does not
+change who you **are**.
+
+- The badge is untouched. A company owner filtering to Bologna is still the company owner,
+  with company-level reach. Narrowing the view must never quietly narrow authority, or
+  tidying your screen would cost you access to your own business.
+- Because the badge is unchanged, the filter can only ever **subtract**. Row-Level Security
+  still applies underneath: filtering by a gym belonging to somebody else returns nothing,
+  which is tested.
+- The choice lives in the address (`?sede=…`), so it survives a refresh and can be
+  bookmarked — a person watching one location all morning should not have to re-choose it.
+- It appears only when there is a genuine choice: two or more gyms in view. One gym is not
+  a choice.
+
+**Why not the alternative.** The obvious other design is to add gym entries to the location
+switcher, which would hand the person a gym-level badge. That is *safe* — a narrower badge
+than they already hold — but it is wrong. They would silently lose sight of company-wide
+rows while "just looking at one gym", and would have no way to understand why. Two controls
+that look alike must not mean different things: the switcher answers *who am I here*, the
+filter answers *what am I looking at*.
+
+**Consequences:** built on the member list, which is the only list that exists today. The
+same filter is what bookings, trainer calendars and takings will use from Step 8 onward —
+that is the use the owner actually described.
+
+---
+
+## 2026-08-22 — OQ-11 answered: a single-use link, shown once, on screen
+
+**Decision:** when the platform admin creates a person, the screen shows a **single-use,
+one-hour link** that lets that person choose their own password. Option two of the three
+offered.
+
+**Why this and not the others.** Leaving it as it was meant hunting through terminal output,
+because no demo address can receive email. Letting the admin type an initial password was
+the weakest of the three: it puts a real, working password in a second pair of hands, and
+"nobody ever knows another person's password" is a rule worth keeping absolute.
+
+The link is the ordinary reset machinery, unchanged — same one hour, same single use, and
+only the *hash* of the token is stored, so a stolen backup is still worthless.
+
+**Why it is not an escalation.** The link is minted only for an account created a moment
+earlier by the person now holding it. An email that already belongs to somebody is refused
+before any link exists, so this screen can never produce a way into an existing account —
+which is tested explicitly.
+
+**Consequences:** the note on the form now explains all of this. If the link is lost, the
+person uses "Password dimenticata" as before; nothing depends on the link surviving.
+
+---
+
+## 2026-08-22 — ⚠ The forgotten-password flow had never worked
+
+**What happened:** building the link above uncovered that "Password dimenticata" was broken
+from Step 2 until today, in two separate ways, neither of which any test could see.
+
+**One — the wrong Prisma call.** Every write went through `$queryRaw` to an `app.auth_*`
+function that returns `void`. Prisma tries to deserialize a result set that does not exist
+and throws. Requesting a reset threw; completing one would have thrown too.
+
+**Two — the clock again.** `expires_at` was computed in the application as "now plus an
+hour" and sent as a parameter. Measured against the database clock it landed **an hour in
+the past**: a two-hour shift, the same drift removed from everything else on 2026-07-30.
+Every token was born expired.
+
+**Why neither was caught.** The password-reset tests covered token hashing and password
+rules — pure calculations that never touch the database. And the second bug was invisible
+even in principle, because the application then compared `expires_at` against its *own*
+clock, which drifts identically. Wrong twice, consistently, and therefore self-consistent.
+`expires_at` also escaped the clock guard by its nature: it is a *future* timestamp, so it
+can never have a database DEFAULT for that test to check.
+
+**The fix, in the shape the project already decided.** The application no longer has an
+opinion about time. `auth_create_reset_token` now takes a **lifetime**, not a moment, and
+adds it to its own `now()`. `auth_find_reset_token` returns `still_valid` — the verdict, not
+the evidence — so nothing is ever recomputed against a second clock. There is no longer a
+signature through which a wrong "now" could be expressed.
+
+**And the missing test now exists.** `password-reset.db.test.ts` runs the whole journey
+against the real database: ask for a link, follow it, set a new password, confirm the old
+one stops working, confirm the link dies after one use and takes every other outstanding
+link with it. Two more in `db.clock.test.ts` fail if a token is ever given the wrong
+lifetime or judged by the wrong clock.
+
+**The lesson, stated plainly, because it is the third time:** testing the parts is not
+testing the thing. Every one of these bugs sat behind a green suite.
+
+---
+
 # Open questions
 
 Numbered so they can be answered by reference. Nothing that depends on these gets built.
@@ -962,26 +1058,8 @@ the **strongest** role held; land on the **most recently used** place, remembere
 or **ask** on first sign-in. Needs deciding before real owners use the system daily — it is
 the first thing they will see every morning.
 
-**OQ-10 · Should the owner of a whole circuit be able to narrow to one gym?** Today they
-cannot. A company-level owner holds a single scope covering everything they own, so they get
-no location switcher and see every gym's members in one list, told apart by the "Sede"
-column. That is correct and often what they want. But a two-gym owner who is working at
-Bologna today has no way to say so, while the platform admin — who is *less* attached to the
-business — can. Narrowing would mean handing them a gym-level badge, which is a *narrower*
-badge than they already hold, so nothing is weakened by it. Not urgent; it becomes more
-pressing once there are calendars and takings to look at per location.
-
-**OQ-11 · How should somebody created through a screen get their first password?** Today
-they get none, on purpose: they set their own through "Password dimenticata", exactly as a
-member added at the desk does. In the sandbox this does not work smoothly, because every demo
-address ends in `@example.com` and Resend refuses to send to those, so the link only appears
-in the terminal. Three options: leave it and document the terminal (today's answer); show the
-platform admin a single-use reset link on screen immediately after creating somebody, which
-is no escalation since they created the account anyway; or let the admin set an initial
-password, which is the weakest of the three because it puts a real password in a second pair
-of hands. Needs answering before anybody onboards staff for real.
-
-*(OQ-7, the email provider, was answered on 2026-07-30: **Resend**. See the decision above.)*
+*(OQ-7 was answered on 2026-07-30: **Resend**. OQ-10 (narrowing to one gym) and OQ-11
+(first passwords) were answered on 2026-08-22. All three are in the decision log above.)*
 
 ---
 

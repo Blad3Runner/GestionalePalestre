@@ -83,6 +83,9 @@ const it = {
     title: "Clienti",
     lede: "Le persone iscritte in questa sede.",
     ledeGym: "Le persone iscritte a {place}.",
+    filterGym: "Sede",
+    allGyms: "Tutte le sedi",
+    applyFilter: "Filtra",
     ledeCompany: "Le persone iscritte in tutte le sedi di {place}.",
     none: "Nessun cliente ancora. Aggiungine uno qui sotto.",
     name: "Nome",
@@ -181,6 +184,10 @@ const it = {
       "Non si creano altri amministratori di piattaforma da qui: l'applicazione non ne ha il permesso, per scelta.",
     noPasswordYet:
       "La persona appena creata NON ha una password e non può ancora entrare. La imposta da sola con «Password dimenticata» dalla pagina di accesso.",
+    created: "{name} è stato creato.",
+    firstSignInTitle: "Link per la prima password",
+    firstSignInHelp:
+      "Consegna questo link a {name}: sceglierà la password da solo. Vale UNA volta sola e scade fra un'ora. Non viene mostrato di nuovo: se lo perdi, la persona può sempre usare «Password dimenticata».",
   },
   pages: {
     adminTitle: "Amministrazione piattaforma",
@@ -280,6 +287,9 @@ const en: Dictionary = {
     title: "Members",
     lede: "The people signed up at this location.",
     ledeGym: "The people signed up at {place}.",
+    filterGym: "Location",
+    allGyms: "All locations",
+    applyFilter: "Filter",
     ledeCompany: "The people signed up across every location of {place}.",
     none: "No members yet. Add one below.",
     name: "Name",
@@ -378,6 +388,10 @@ const en: Dictionary = {
       "Further platform administrators are not created here: the application has no permission to, by choice.",
     noPasswordYet:
       "The person you just created has NO password and cannot sign in yet. They set their own through “Forgotten password” on the sign-in page.",
+    created: "{name} has been created.",
+    firstSignInTitle: "First-password link",
+    firstSignInHelp:
+      "Give this link to {name}: they choose their own password. It works ONCE and expires in an hour. It is not shown again — if you lose it, they can always use “Forgotten password”.",
   },
   pages: {
     adminTitle: "Platform administration",

@@ -140,8 +140,8 @@ naming the PostgreSQL version (something like "PostgreSQL 18").
 
 **A3 · Run the automated tests.**
 In a second terminal: `npm test`.
-**Expect:** the last two lines read `Test Files 12 passed (12)` and
-`Tests 261 passed (261)`. It takes a few seconds.
+**Expect:** the last two lines read `Test Files 13 passed (13)` and
+`Tests 279 passed (279)`. It takes a few seconds.
 **Broken would look like:** any line containing `FAIL`, or a number under "failed" that is
 not zero.
 
@@ -210,9 +210,18 @@ switcher.
 **Broken would look like:** seeing only one gym's members, or the Sede column being empty
 so you cannot tell the locations apart.
 
-> Being unable to narrow down to just Bologna for the day is a known limitation, recorded
-> as open question **OQ-10**. It matters more once there are calendars and takings to look
-> at per location.
+**C2b · Narrow the view to one location.**
+Above the list there is a **"Sede"** dropdown offering "Tutte le sedi", "Bologna" and
+"Torino". Choose **Bologna** and press "Filtra".
+**Expect:** the list drops to **two** people, both at Bologna. Carlo Torino disappears. The
+line under the heading changes to "Le persone iscritte a Bologna." The address bar now ends
+in `?sede=…`, so a refresh keeps your choice and you can bookmark it.
+**Expect also:** you are **still the owner of the whole company**. Choosing "Tutte le sedi"
+and pressing "Filtra" brings everything back. This is a filter on what you see, not a
+change to who you are — narrowing the screen must never cost you access to your own
+business.
+**Broken would look like:** the filter emptying the list entirely, the choice being lost on
+refresh, or anything becoming *unavailable* to you while filtered.
 
 **C3 · A member cannot see other members.**
 Sign out, sign in as `cliente@example.com` (a member at Milano).
@@ -426,17 +435,33 @@ Cliente. **"Amministratore piattaforma" is deliberately not on the list**, and a
 the form says so. The application has no permission to create founders, by design.
 **Broken would look like:** platform admin being offered.
 
-> **You cannot sign in as this person, and that is on purpose.** Nobody — not even you —
-> ever sets somebody else's password. A person created here has none at all; they set their
-> own through "Password dimenticata" on the sign-in page, exactly as a member added at the
-> desk does.
->
-> **In the sandbox this is awkward, and you should know why.** Every demo address ends in
-> `@example.com`, and the email service refuses to send to those addresses at all. So the
-> reset link never arrives in an inbox — instead it is **printed in the terminal window
-> where `npm run dev` is running**. Scroll up there, find the block headed `EMAIL NOT SENT`,
-> copy the link out of it, and paste it into the browser. That works, but it is clumsy, and
-> it is recorded as open question **OQ-11**.
+**G5b · Give the new person their first password.**
+Immediately after creating them, a green panel appears headed **"Link per la prima
+password"**, containing a long web address.
+**Expect:** the panel names the person ("Prova Titolare è stato creato.") and explains that
+the link works **once** and expires in an hour.
+**Why it works this way:** nobody — not even you — ever sets somebody else's password. You
+hand them the link; they choose their own. If you lose it, they can always use "Password
+dimenticata" instead.
+**Broken would look like:** no panel appearing, or the panel appearing but the link not
+working at step G5c.
+
+**G5c · Walk the link yourself, to prove it works.**
+Copy the link. Sign out. Paste it into the browser bar. Type a new password twice — try
+`PrimaPassword2026!` — and save.
+**Expect:** "Password aggiornata. Ora puoi accedere." Then sign in as
+`prova.titolare@example.com` with the password you just chose.
+**Expect:** you land as that person, and the top bar shows their name and their role at the
+place you assigned them.
+**Broken would look like:** the link saying it is invalid or expired the first time you use
+it — that was a real bug until 22 August 2026, when every reset link was being created
+already expired.
+
+**G5d · Confirm the link dies after one use.**
+Paste the same link in again.
+**Expect:** refused as invalid. A link that could be used twice would be a permanent way in
+for anybody who ever saw it.
+**Broken would look like:** being asked to choose a password a second time.
 
 **G6 · Find Elena in the list, and see the two hats in one row.**
 Scroll the people list to "Elena Due Cappelli".
@@ -508,6 +533,10 @@ Each step's contract, and where each line is proven. **No row rests on "trust me
 | All three pay models exist and are dated | `demo-world.test.ts › how trainers are paid` (4 cases) | Yes |
 | Every timestamp comes from the database's clock | `db.clock.test.ts` (5 cases) · `actions.test.ts › dates the deactivation by the database's clock` | Yes |
 | Company and gym names can never be confused for each other | `demo-world.test.ts › the names cannot be confused with each other` (2 cases) · Owner script **C1, C2, G1** | Yes |
+| A whole-company owner can narrow to one gym — **a filter, never a demotion** | `actions.test.ts › narrowing the list to one location` (5 cases) · Owner script **C2b** | Yes |
+| A person created by the admin gets a **single-use** first-password link | `actions.test.ts › the first-password link for somebody just created` (4 cases) · Owner script **G5b, G5c, G5d** | Yes |
+| "Password dimenticata" actually works, end to end | `password-reset.db.test.ts` (7 cases) · Owner script **G5c** | Yes |
+| A reset link is dated and judged by the database's clock | `db.clock.test.ts › timestamps the application asks for, rather than writes` (2 cases) | Yes |
 
 ---
 
@@ -523,8 +552,6 @@ list.
 | **The full audit log** across a company | Only the last 25 entries for one member appear on their file | `audit.test.ts` (16 cases) |
 | **Creating another platform admin** | **Deliberate.** The application has no permission to create founders. Done by the seed only | `wall.test.ts › (c) cannot read anybody's platform roles but its own` |
 | **Adding an existing person to a second company** | Elena's two hats exist through the seed. Doing it by hand has no screen yet | `demo-world.test.ts › the person with two hats` |
-| **Setting somebody's first password** | Deliberate — nobody sets another person's password. Today the reset link only reaches the terminal for demo addresses (**OQ-11**) | Owner script **G5** |
-| **Narrowing a whole-company owner to one gym** | Not built; they see every location at once (**OQ-10**) | Owner script **C2** |
 | **Editing a company or a gym** after creating it | Only creation was in scope | — |
 | **Editing a member's level, package cap or usual trainer** after creation | Set at creation; changing them afterwards has no screen | — |
 | **Company and gym settings** (price and opening-hours overrides) | The store exists; a settings screen was explicitly excluded from Step 3 | — |

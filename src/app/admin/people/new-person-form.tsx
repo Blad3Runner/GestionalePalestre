@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createPersonAction, type CreatePersonState } from "@/lib/platform/actions";
-import type { Dictionary } from "@/i18n/dictionaries";
+import { fill, type Dictionary } from "@/i18n/dictionaries";
 import type { PlaceOption } from "@/lib/platform/queries";
 
 const initial: CreatePersonState = { error: null };
@@ -25,6 +25,23 @@ export function NewPersonForm({
         <p className="notice bad" role="alert">
           {t.platform[state.error]}
         </p>
+      ) : null}
+
+      {state.error === null && state.firstSignInLink ? (
+        <div className="notice ok" role="status">
+          <p style={{ marginTop: 0 }}>
+            <strong>{fill(t.platform.created, { name: state.createdName ?? "" })}</strong>
+          </p>
+          <p>
+            <strong>{t.platform.firstSignInTitle}</strong>
+          </p>
+          {/* Selectable rather than a link: it is meant to be copied and handed over,
+              not followed by whoever created the account. */}
+          <code className="setup-link">{state.firstSignInLink}</code>
+          <p style={{ marginBottom: 0 }}>
+            {fill(t.platform.firstSignInHelp, { name: state.createdName ?? "" })}
+          </p>
+        </div>
       ) : null}
 
       <label htmlFor="name">{t.platform.name}</label>

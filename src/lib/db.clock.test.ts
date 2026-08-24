@@ -192,3 +192,69 @@ describe("the timestamps actually written", () => {
     }
   });
 });
+
+describe("timestamps the application asks for, rather than writes", () => {
+  /**
+   * A reset token's `expires_at` is in the FUTURE, so it can never have a database
+   * default and the check above cannot see it. It was wrong for weeks because of
+   * exactly that gap: computed in the application, sent through Prisma, and landing
+   * two hours out — an hour before it was created (docs/decisions.md, 2026-08-22).
+   *
+   * The application now passes a lifetime and the database adds it to its own `now()`.
+   * These tests fail if anybody hands the clock back.
+   */
+  it("gives a reset token an hour of life, measured by the database", async () => {
+    await db.query("BEGIN");
+    try {
+      const person = await db.query("SELECT id FROM dim_person LIMIT 1");
+      if (person.rows.length === 0) {
+        throw new Error("No demo data. Run `npm run db:reset-demo` first.");
+      }
+
+      await db.query("SELECT app.auth_create_reset_token($1::uuid, $2, '1 hour'::interval)", [
+        person.rows[0].id,
+        "clock-test-hash",
+      ]);
+
+      const { rows } = await db.query(
+        `SELECT expires_at, now() AS db_now FROM password_reset_token
+         WHERE token_hash = 'clock-test-hash'`,
+      );
+
+      const life = rows[0].expires_at.getTime() - rows[0].db_now.getTime();
+
+      // An hour, give or take the time this test takes to run. Minus an hour — which
+      // is what the bug produced — fails loudly here.
+      expect(life, "a token expires at the wrong time").toBeGreaterThan(59 * 60 * 1000);
+      expect(life).toBeLessThanOrEqual(60 * 60 * 1000 + TOLERANCE_MS);
+    } finally {
+      await db.query("ROLLBACK");
+    }
+  });
+
+  it("judges validity itself, rather than handing a date back to be compared", async () => {
+    await db.query("BEGIN");
+    try {
+      const person = await db.query("SELECT id FROM dim_person LIMIT 1");
+
+      // One good, one already expired. The database must tell them apart without the
+      // application doing any arithmetic.
+      await db.query("SELECT app.auth_create_reset_token($1::uuid, $2, '1 hour'::interval)", [
+        person.rows[0].id,
+        "clock-valid",
+      ]);
+      await db.query("SELECT app.auth_create_reset_token($1::uuid, $2, '-1 hour'::interval)", [
+        person.rows[0].id,
+        "clock-expired",
+      ]);
+
+      const good = await db.query("SELECT still_valid FROM app.auth_find_reset_token('clock-valid')");
+      const stale = await db.query("SELECT still_valid FROM app.auth_find_reset_token('clock-expired')");
+
+      expect(good.rows[0].still_valid).toBe(true);
+      expect(stale.rows[0].still_valid).toBe(false);
+    } finally {
+      await db.query("ROLLBACK");
+    }
+  });
+});

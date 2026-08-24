@@ -161,6 +161,11 @@ that was already signed in is holding a pass belonging to somebody who no longer
 `RESEND_API_KEY` in `.env` it falls back to printing the link in the terminal window where
 `npm run dev` is running, so nothing depends on an external service.
 
+**No demo account can receive email**, because every one of them ends in `@example.com` and
+Resend refuses those addresses outright. That does not matter in practice: when the platform
+admin creates somebody, the screen shows a **single-use first-password link** directly
+(decided 2026-08-22), so no email is needed to get a new person signed in.
+
 ### Occasionally useful
 
 | Command | What it does |

@@ -232,6 +232,39 @@ a {
   border-color: var(--ok);
 }
 
+.gym-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.gym-filter label {
+  color: var(--muted);
+}
+
+.gym-filter select {
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.setup-link {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 0.5rem 0.6rem;
+  margin: 0.4rem 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  user-select: all;
+}
+
 .scope-label {
   color: var(--muted);
   font-size: 0.85rem;
